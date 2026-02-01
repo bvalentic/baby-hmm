@@ -1,5 +1,6 @@
 ## An HMM-based algorithmic trading system in Python
 
+import numpy as np
 import yfinance as yf
 import pandas as pd
 
