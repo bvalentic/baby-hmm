@@ -166,3 +166,6 @@ plt.show()
 
 This is a **training set** evaluation (in-sample). In real algorithmic trading, you must split your data (e.g., train on 2010-2018, test on 2019-2023) to see if the HMM can predict regimes it hasn't seen yet.
 
+# Instead of plt.show(), use:
+plt.savefig('hmm_regimes.png')
+print("Plot saved as hmm_regimes.png")
