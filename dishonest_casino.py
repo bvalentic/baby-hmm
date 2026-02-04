@@ -35,6 +35,13 @@ n = 30000
 print(f"Simulating {n} die rolls...")
 rolls, gen_states = gen_model.sample(n)
 
+print("Model training complete.")
+# print("Means and variances of each state:")
+# for i in range(gen_model.n_components):
+#     print(f"State {i}:")
+#     print(f"  Mean Returns: {gen_model.")
+#     print(f"  Mean Range (Vol): {gen_model.means_[i][1]:.5f}")
+
 # plot states over time, let's just look at the first rolls for clarity
 print("Plotting data...")
 fig, ax = plt.subplots()
@@ -59,3 +66,58 @@ ax.legend()
 
 print("Roll probabilities by state:")
 plt.show()
+
+# split our data into training and validation sets (50/50 split)
+print("Splitting data into training and validation sets...")
+X_train = rolls[:rolls.shape[0] // 2]
+X_validate = rolls[rolls.shape[0] // 2:]
+
+# check optimal score
+print("Checking optimal score...")
+gen_score = gen_model.score(X_validate)
+
+best_score = best_model = None
+n_fits = 50
+np.random.seed(13)
+for idx in range(n_fits):
+    model = hmm.CategoricalHMM(
+        n_components=2, random_state=idx,
+        init_params='se')  # don't init transition, set it below
+    # we need to initialize with random transition matrix probabilities
+    # because the default is an even likelihood transition
+    # we know transitions are rare (otherwise the casino would get caught!)
+    # so let's have an Dirichlet random prior with an alpha value of
+    # (0.1, 0.9) to enforce our assumption transitions happen roughly 10%
+    # of the time
+    model.transmat_ = np.array([np.random.dirichlet([0.9, 0.1]),
+                                np.random.dirichlet([0.1, 0.9])])
+    model.fit(X_train)
+    score = model.score(X_validate)
+    print(f'Model #{idx}\tScore: {score}')
+    if best_score is None or score > best_score:
+        best_model = model
+        best_score = score
+
+print(f'Generated score: {gen_score}\nBest score:      {best_score}\n')
+
+# use the Viterbi algorithm to predict the most likely sequence of states
+# given the model
+states = best_model.predict(rolls)
+
+# plot our recovered states compared to generated (aim 1)
+fig, ax = plt.subplots()
+ax.plot(gen_states[:500], label='generated')
+ax.plot(states[:500] + 1.5, label='recovered')
+ax.set_yticks([])
+ax.set_title('States compared to generated')
+ax.set_xlabel('Time (# rolls)')
+ax.set_xlabel('State')
+ax.legend()
+plt.show()
+
+print(f'Transmission Matrix Generated:\n{gen_model.transmat_.round(3)}\n\n'
+      f'Transmission Matrix Recovered:\n{best_model.transmat_.round(3)}\n\n')
+
+print(f'Emission Matrix Generated:\n{gen_model.emissionprob_.round(3)}\n\n'
+      f'Emission Matrix Recovered:\n{best_model.emissionprob_.round(3)}\n\n')
+
