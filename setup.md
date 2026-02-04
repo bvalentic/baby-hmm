@@ -153,19 +153,6 @@ plt.show()
 
 ```
 
-### Summary of Key Concepts
 
-| Concept | Explanation |
-| --- | --- |
-| **Observation** | The data you see (Returns, Volatility). |
-| **Hidden State** | The invisible regime (Bear, Bull, Choppy) causing the observations. |
-| **Transition Matrix** | The probability of moving from one state to another (e.g., How likely is it to stay in a Bull market tomorrow if we are in one today?). |
-| **Stationarity** | HMMs fail if you feed them raw prices (100, 101, 102). You must feed them changes (returns) or ratios (volatility). |
 
-### Important Warning
 
-This is a **training set** evaluation (in-sample). In real algorithmic trading, you must split your data (e.g., train on 2010-2018, test on 2019-2023) to see if the HMM can predict regimes it hasn't seen yet.
-
-# Instead of plt.show(), use:
-plt.savefig('hmm_regimes.png')
-print("Plot saved as hmm_regimes.png")
