@@ -1,5 +1,6 @@
 # Baby-HMM
 AKA Baby's First HMM
+A growing set of hidden Markov models
 
 ## Create Virtual Env and Install Dependencies:
 
@@ -11,7 +12,7 @@ python3 -m pip install -r requirements.txt
 ## Run Program:
 
 ```bash
-python hmm.py
+python hmm.py # or whichever py file you want to run
 ```
 ### Summary of Key Concepts:
 
