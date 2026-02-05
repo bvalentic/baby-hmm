@@ -10,18 +10,27 @@ from hmmlearn import hmm
 print("Fetching data...")
 
 # use SPY (S&P 500 ETF) for a good mix of regimes
-data = yf.download("SPY", start="2018-01-01", end="2023-01-01")
+# data = yf.download("SPY", start="2017-06-01", end="2023-01-01")
+# BTC-USD for crypto generalities
+data = yf.download("BTC-USD", start="2017-06-01", end="2023-01-01")
+
+# using dataset of choice, separate into training and testing data
+dataset = data
+#train_size = int(len(dataset) * 0.75)
+train_size = int(len(dataset))
+train_data = dataset[:train_size]
+test_data = dataset[train_size:]
 
 # Feature engineering
 # we need features that define the "state" of the market
 # common choices are returns and volatility
-data['Returns'] = np.log(data['Close'] / data['Close'].shift(1))
-data['Range'] = (data['High'] - data['Low']) / data['Close']
-data.dropna(inplace=True)
+train_data['Returns'] = np.log(train_data['Close'] / train_data['Close'].shift(1))
+train_data['Range'] = (train_data['High'] - train_data['Low']) / train_data['Close']
+train_data.dropna(inplace=True)
 
 # Prepare data for hmmlearn
 # hmmlearn expects a 2D array of shape (n_samples, n_features)
-X = data[['Returns', 'Range']].values
+X = train_data[['Returns', 'Range']].values
 
 print(f"Data shape: {X.shape}")
 
@@ -42,7 +51,7 @@ print("Estimating states...")
 hidden_states = model.predict(X)
 
 # Add states back to the dataframe for analysis
-data['State'] = hidden_states
+train_data['State'] = hidden_states
 
 print("Model training complete.")
 print("Means and variances of each state:")
@@ -61,10 +70,10 @@ colors = ['green', 'red', 'blue']
 
 for i in range(model.n_components):
     state = (hidden_states == i)
-    plt.plot(data.index[state], data['Close'][state], '.', label=f'State {i}', color=colors[i], markersize=3)
+    plt.plot(train_data.index[state], train_data['Close'][state], '.', label=f'State {i}', color=colors[i], markersize=3)
 
 plt.legend()
-plt.title('S&P 500 Regimes Detected by HMM')
+plt.title('Regimes Detected by HMM')
 
 # If able to display:
 plt.show()
