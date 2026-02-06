@@ -10,14 +10,16 @@ from hmmlearn import hmm
 print("Fetching data...")
 
 # use SPY (S&P 500 ETF) for a good mix of regimes
-# data = yf.download("SPY", start="2017-06-01", end="2023-01-01")
+start_date = "2017-06-01"
+end_date = "2023-01-01"
+data = yf.download("SPY", start=start_date, end=end_date)
 # BTC-USD for crypto generalities
-data = yf.download("BTC-USD", start="2017-06-01", end="2023-01-01")
+# data = yf.download("BTC-USD", start="2017-06-01", end="2023-01-01")
 
 # using dataset of choice, separate into training and testing data
 dataset = data
-#train_size = int(len(dataset) * 0.75)
-train_size = int(len(dataset))
+train_size = int(len(dataset) * 0.75)
+#train_size = int(len(dataset))
 train_data = dataset[:train_size]
 test_data = dataset[train_size:]
 
@@ -54,11 +56,21 @@ hidden_states = model.predict(X)
 train_data['State'] = hidden_states
 
 print("Model training complete.")
+
+bullish_mean_return = model.means_[0][0]
+bull_index = 0
+
 print("Means and variances of each state:")
 for i in range(model.n_components):
     print(f"State {i}:")
     print(f"  Mean Returns: {model.means_[i][0]:.5f}")
     print(f"  Mean Range (Vol): {model.means_[i][1]:.5f}")
+
+    if model.means_[i][0] > bullish_mean_return:
+        bullish_mean_return = model.means_[i][0]
+        bull_index = i
+
+print(f"\nExpected bullish regime: {bull_index}")
 
 # Phase 3 - plot and show
 
@@ -82,3 +94,41 @@ plt.show()
 #plt.savefig('hmm_regimes.png')
 #print("Plot saved as hmm_regimes.png")
 
+expected_bullish_state = bull_index
+observed_bullish_state = int(input("Which state is the bullish state? "))
+if (expected_bullish_state == observed_bullish_state):
+    print("Observed bullish state matched expected state!")
+else:
+    print("Observed bullish state did not match expected state!")
+
+print("Next phase: Testing against training data \n")
+
+# Create a signal: 1 if in bullish state, 0 otherwise
+print("Setting bull market signal...")
+train_data['Signal'] = np.where(train_data['State'] == observed_bullish_state, 1, 0)
+
+# Calculate Strategy Returns
+# We shift signal by 1 because we trade at the close based on today's state for tomorrow
+train_data['Strategy_Returns'] = train_data['Signal'].shift(1) * train_data['Returns']
+
+# Calculate Cumulative Returns
+train_data['Cumulative_Market'] = np.exp(train_data['Returns'].cumsum())
+train_data['Cumulative_Strategy'] = np.exp(train_data['Strategy_Returns'].cumsum())
+
+# Plot Performance
+print("Plot performance:")
+plt.figure(figsize=(12, 6))
+plt.plot(train_data['Cumulative_Market'], label='Buy & Hold', color='gray')
+plt.plot(train_data['Cumulative_Strategy'], label='HMM Strategy', color='orange')
+plt.title('HMM Strategy vs Buy & Hold')
+plt.legend()
+plt.show()
+
+market_value = train_data['Cumulative_Market']
+# print column?
+strategy_value = train_data['Cumulative_Strategy']
+
+# if(train_data['Cumulative_Market'] > train_data['Cumulative_Strategy']):
+#     print("Buy & hold strategy outperformed HMM!")
+# else:
+#     print("HMM strategy outperformed buy & hold!")
