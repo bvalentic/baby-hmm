@@ -6,8 +6,7 @@ import yfinance as yf
 import matplotlib.pyplot as plt
 from hmmlearn import hmm
 
-# Phase 1 - get data
-print("Fetching data...")
+print("Phase 1: Fetch data")
 
 start_date = "2017-06-01"
 end_date = "2023-01-01"
@@ -20,36 +19,32 @@ data = yf.download("SPY", start=start_date, end=end_date)
 
 # using dataset of choice, separate into training and testing data
 dataset = data
-train_size = int(len(dataset) * 0.75)
+train_size = int(len(dataset) * 0.70)
 #train_size = int(len(dataset))
 train_data = dataset[:train_size]
 test_data = dataset[train_size:]
 
-# Feature engineering
 # we need features that define the "state" of the market
 # common choices are returns and volatility
 train_data['Returns'] = np.log(train_data['Close'] / train_data['Close'].shift(1))
 train_data['Range'] = (train_data['High'] - train_data['Low']) / train_data['Close']
 train_data.dropna(inplace=True)
 
-# Prepare data for hmmlearn
 # hmmlearn expects a 2D array of shape (n_samples, n_features)
 X = train_data[['Returns', 'Range']].values
 
 print(f"Data shape: {X.shape}")
 
-# Phase 2 - build and train model
-print("Creating model...")
+print("Phase 2 - build and train model")
 
 # n_components = 3 (we assume 3 market regimes)
 # covariance_type = "full" allows features to correlate within a state
+print("Creating model...")
 model = hmm.GaussianHMM(n_components=3, covariance_type="full", algorithm="viterbi", n_iter=100)
 
-# fit the model to the data
-print("Fitting model...")
+print("Fitting model to data...")
 model.fit(X)
 
-# Predict states
 # model estimates which "hidden state" generated the data for each day
 print("Estimating states...")
 hidden_states = model.predict(X)
@@ -91,7 +86,6 @@ plt.title('Regimes Detected by HMM')
 
 # If able to display:
 plt.show()
-
 # If using container or headless:
 #plt.savefig('hmm_regimes.png')
 #print("Plot saved as hmm_regimes.png")
@@ -99,11 +93,11 @@ plt.show()
 expected_bullish_state = bull_index
 observed_bullish_state = int(input("Which state is the bullish state? "))
 if (expected_bullish_state == observed_bullish_state):
-    print("Observed bullish state matched expected state!")
+    print("\nObserved bullish state matched expected state!")
 else:
-    print("Observed bullish state did not match expected state!")
+    print("\nObserved bullish state did not match expected state!")
 
-print("Next phase: Testing against training data \n")
+print("\nNext phase: Testing against training data \n")
 
 # Create a signal: 1 if in bullish state, 0 otherwise
 print("Setting bull market signal...")
@@ -126,11 +120,14 @@ plt.title('HMM Strategy vs Buy & Hold')
 plt.legend()
 plt.show()
 
-market_value = train_data['Cumulative_Market']
-print(f"Market value? {market_value}")
-strategy_value = train_data['Cumulative_Strategy']
+# somehow these values are only dates; I need to grab the actual dependent variable
+market_value = train_data['Cumulative_Market'].last_valid_index()
+strategy_value = train_data['Cumulative_Strategy'].last_valid_index()
 
-# if(train_data['Cumulative_Market'] > train_data['Cumulative_Strategy']):
+print(f"Market value: {market_value}")
+print(f"Strategy value: {strategy_value}")
+
+# if(market_value > strategy_value):
 #     print("Buy & hold strategy outperformed HMM!")
 # else:
 #     print("HMM strategy outperformed buy & hold!")
