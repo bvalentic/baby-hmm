@@ -35,7 +35,7 @@ X = train_data[['Returns', 'Range']].values
 
 print(f"Data shape: {X.shape}")
 
-print("Phase 2 - build and train model")
+print("Phase 2: Build & train model")
 
 # n_components = 3 (we assume 3 market regimes)
 # covariance_type = "full" allows features to correlate within a state
