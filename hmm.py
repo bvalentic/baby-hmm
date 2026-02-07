@@ -6,23 +6,21 @@ import yfinance as yf
 import matplotlib.pyplot as plt
 from hmmlearn import hmm
 
-print("Phase 1: Fetch data")
+print("Phase 1: Fetch data\n")
 
 start_date = "2017-06-01"
 end_date = "2023-01-01"
 start_date_btc = "2016-01-01"
 end_date_btc = "2022-01-01"
 # use SPY (S&P 500 ETF) for a good mix of regimes
-# data = yf.download("SPY", start=start_date, end=end_date)
+data = yf.download("SPY", start=start_date, end=end_date)
 # BTC-USD for regimes in crypto
-data = yf.download("BTC-USD", start=start_date_btc, end=end_date_btc)
+# data = yf.download("BTC-USD", start=start_date_btc, end=end_date_btc)
 
-# using dataset of choice, separate into training and testing data
-dataset = data
-train_size = int(len(dataset) * 0.70)
-#train_size = int(len(dataset))
-train_data = dataset[:train_size]
-test_data = dataset[train_size:]
+# separate dataset into training and testing data
+train_size = int(len(data) * 0.70)
+train_data = data[:train_size]
+test_data = data[train_size:]
 
 # we need features that define the "state" of the market
 # common choices are returns and volatility
@@ -35,12 +33,14 @@ X = train_data[['Returns', 'Range']].values
 
 print(f"Data shape: {X.shape}")
 
-print("Phase 2: Build & train model")
+print("\nPhase 2: Build & train model")
 
-# n_components = 3 (we assume 3 market regimes)
-# covariance_type = "full" allows features to correlate within a state
+# number of market regimes
+n_components = 4
+# "full" allows features to correlate within a state
+covariance_type = "full"
 print("Creating model...")
-model = hmm.GaussianHMM(n_components=3, covariance_type="full", algorithm="viterbi", n_iter=100)
+model = hmm.GaussianHMM(n_components, covariance_type, algorithm="viterbi", n_iter=100)
 
 print("Fitting model to data...")
 model.fit(X)
@@ -49,7 +49,7 @@ model.fit(X)
 print("Estimating states...")
 hidden_states = model.predict(X)
 
-# Add states back to the dataframe for analysis
+# add states back to the dataframe for analysis
 train_data['State'] = hidden_states
 
 print("Model training complete.")
@@ -69,13 +69,13 @@ for i in range(model.n_components):
 
 print(f"\nExpected bullish regime: {bull_index}")
 
-# Phase 3 - plot and show
+print("\nPhase 3: Plot and show")
 
 # plot price, colored by state
 plt.figure(figsize=(15, 6))
 
-# define colors for states (0, 1, 2)
-colors = ['green', 'red', 'blue'] 
+# define colors for 4 states
+colors = ['green', 'red', 'blue', 'orange'] 
 
 for i in range(model.n_components):
     state = (hidden_states == i)
@@ -84,35 +84,35 @@ for i in range(model.n_components):
 plt.legend()
 plt.title('Regimes Detected by HMM')
 
-# If able to display:
+# if able to display:
 plt.show()
-# If using container or headless:
+# if using container or headless:
 #plt.savefig('hmm_regimes.png')
 #print("Plot saved as hmm_regimes.png")
 
 expected_bullish_state = bull_index
 observed_bullish_state = int(input("Which state is the bullish state? "))
 if (expected_bullish_state == observed_bullish_state):
-    print("\nObserved bullish state matched expected state!")
+    print("\n🤖 Observed bullish state matched expected state!")
 else:
-    print("\nObserved bullish state did not match expected state!")
+    print("\n👀 Observed bullish state did not match expected state!")
 
 print("\nNext phase: Testing against training data \n")
 
-# Create a signal: 1 if in bullish state, 0 otherwise
+# create a signal: 1 if in bullish state, 0 otherwise
 print("Setting bull market signal...")
 train_data['Signal'] = np.where(train_data['State'] == observed_bullish_state, 1, 0)
 
-# Calculate Strategy Returns
+# calculate Strategy Returns
 # We shift signal by 1 because we trade at the close based on today's state for tomorrow
 train_data['Strategy_Returns'] = train_data['Signal'].shift(1) * train_data['Returns']
 
-# Calculate Cumulative Returns
+# calculate Cumulative Returns
 train_data['Cumulative_Market'] = np.exp(train_data['Returns'].cumsum())
 train_data['Cumulative_Strategy'] = np.exp(train_data['Strategy_Returns'].cumsum())
 
 # Plot Performance
-print("Plot performance:")
+print("\nPlot performance:\n")
 plt.figure(figsize=(12, 6))
 plt.plot(train_data['Cumulative_Market'], label='Buy & Hold', color='gray')
 plt.plot(train_data['Cumulative_Strategy'], label='HMM Strategy', color='orange')
@@ -120,14 +120,45 @@ plt.title('HMM Strategy vs Buy & Hold')
 plt.legend()
 plt.show()
 
-# somehow these values are only dates; I need to grab the actual dependent variable
-market_value = train_data['Cumulative_Market'].last_valid_index()
-strategy_value = train_data['Cumulative_Strategy'].last_valid_index()
+print("Phase 4: Analyze training results")
 
-print(f"Market value: {market_value}")
-print(f"Strategy value: {strategy_value}")
+# Use .iloc[-1] to get the value in the last row of that specific column
+print("Simple comparison: ")
+market_final_value = train_data['Cumulative_Market'].iloc[-1]
+strategy_final_value = train_data['Cumulative_Strategy'].iloc[-1]
 
-# if(market_value > strategy_value):
-#     print("Buy & hold strategy outperformed HMM!")
-# else:
-#     print("HMM strategy outperformed buy & hold!")
+print(f"Final Market Value: {market_final_value:.2f}")
+print(f"Final Strategy Value: {strategy_final_value:.2f}")
+
+if market_final_value > strategy_final_value:
+    print("\n📈 Buy & Hold outperformed the HMM in training.\n")
+else:
+    print("\n🤖 The HMM strategy beat the market in training!\n")
+
+# calculate Sharpe ratio
+
+print("Phase 5: Test on new data")
+
+# 1. Prepare the test features (must be the same columns as training)
+X_test = test_data[['Returns', 'Range']].values
+
+# 2. Predict states for the test set
+# use .predict(), NOT .fit(). This uses the existing model parameters.
+test_states = model.predict(X_test)
+
+# 3. Add to dataframe and calculate returns
+test_data = test_data.copy() # Avoid SettingWithCopyWarning
+test_data['State'] = test_states
+
+# 4. Apply the strategy logic
+# (Assuming State 0 was your 'Bull' state from the training phase)
+bullish_state = 0
+test_data['Signal'] = np.where(test_data['State'] == bullish_state, 1, 0)
+
+# Calculate returns (Shift by 1 to avoid look-ahead bias!)
+test_data['Strategy_Returns'] = test_data['Signal'].shift(1) * test_data['Returns']
+
+# 5. Calculate Cumulative Growth
+test_data['Cumulative_Market'] = np.exp(test_data['Returns'].cumsum())
+test_data['Cumulative_Strategy'] = np.exp(test_data['Strategy_Returns'].cumsum())
+
