@@ -49,11 +49,11 @@ Here's what I've broken the regimes down into, based purely on what I saw on the
 | 4 | Bull, Bear, Crash, Recovery |
 | --- | --- |
 
-| Regime | Characteristics |
-| --- | --- |
-| Bull | High growth, low-med volatility |
-| Bear | Low or no growth, low-med volatility |
-| Crash | Sharp decline, high volatility |
-| Recovery | High growth, high volatility |
+| Regime | Description | Mean Returns | Mean Range |
+| --- | --- | --- | --- |
+| Bull | High growth, low-med volatility | Low positive | Low volume |
+| Bear | Low or no growth, low-med volatility | Low negative | High volume |
+| Crash | Sharp decline, high volatility | High negative | High volume |
+| Recovery | High growth, high volatility | High positive | Low volume |
 | --- | --- |
 

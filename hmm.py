@@ -103,20 +103,20 @@ print("\nNext phase: Testing against training data \n")
 print("Setting bull market signal...")
 train_data['Signal'] = np.where(train_data['State'] == observed_bullish_state, 1, 0)
 
-# calculate Strategy Returns
+# calculate returns on HMM
 # We shift signal by 1 because we trade at the close based on today's state for tomorrow
 train_data['Strategy_Returns'] = train_data['Signal'].shift(1) * train_data['Returns']
 
-# calculate Cumulative Returns
+# calculate buy & hold returns
 train_data['Cumulative_Market'] = np.exp(train_data['Returns'].cumsum())
 train_data['Cumulative_Strategy'] = np.exp(train_data['Strategy_Returns'].cumsum())
 
-# Plot Performance
-print("\nPlot performance:\n")
+# plot training performance
+print("\nPlotting training performance:\n")
 plt.figure(figsize=(12, 6))
 plt.plot(train_data['Cumulative_Market'], label='Buy & Hold', color='gray')
 plt.plot(train_data['Cumulative_Strategy'], label='HMM Strategy', color='orange')
-plt.title('HMM Strategy vs Buy & Hold')
+plt.title('HMM Strategy vs Buy & Hold - Training')
 plt.legend()
 plt.show()
 
@@ -124,13 +124,13 @@ print("Phase 4: Analyze training results")
 
 # Use .iloc[-1] to get the value in the last row of that specific column
 print("Simple comparison: ")
-market_final_value = train_data['Cumulative_Market'].iloc[-1]
-strategy_final_value = train_data['Cumulative_Strategy'].iloc[-1]
+market_final_train = train_data['Cumulative_Market'].iloc[-1]
+strategy_final_train = train_data['Cumulative_Strategy'].iloc[-1]
 
-print(f"Final Market Value: {market_final_value:.2f}")
-print(f"Final Strategy Value: {strategy_final_value:.2f}")
+print(f"Training Period Market Return: {(market_final_train - 1):.2%}")
+print(f"Training Period Strategy Return: {(strategy_final_train - 1):.2%}")
 
-if market_final_value > strategy_final_value:
+if market_final_train > strategy_final_train:
     print("\n📈 Buy & Hold outperformed the HMM in training.\n")
 else:
     print("\n🤖 The HMM strategy beat the market in training!\n")
@@ -139,26 +139,54 @@ else:
 
 print("Phase 5: Test on new data")
 
-# 1. Prepare the test features (must be the same columns as training)
+# prepare the test features (must be the same columns as training)
+test_data['Returns'] = np.log(test_data['Close'] / test_data['Close'].shift(1))
+test_data['Range'] = (test_data['High'] - test_data['Low']) / test_data['Close']
+test_data.dropna(inplace=True)
 X_test = test_data[['Returns', 'Range']].values
 
-# 2. Predict states for the test set
-# use .predict(), NOT .fit(). This uses the existing model parameters.
+# predict uses the existing model parameters to predict the next state
 test_states = model.predict(X_test)
 
-# 3. Add to dataframe and calculate returns
+# add to dataframe and calculate returns
 test_data = test_data.copy() # Avoid SettingWithCopyWarning
 test_data['State'] = test_states
+test_data['Signal'] = np.where(test_data['State'] == observed_bullish_state, 1, 0)
 
-# 4. Apply the strategy logic
-# (Assuming State 0 was your 'Bull' state from the training phase)
-bullish_state = 0
-test_data['Signal'] = np.where(test_data['State'] == bullish_state, 1, 0)
+# plot predicted regimes
+for i in range(model.n_components):
+    state = (test_states == i)
+    plt.plot(test_data.index[state], test_data['Close'][state], '.', label=f'State {i}', color=colors[i], markersize=3)
 
-# Calculate returns (Shift by 1 to avoid look-ahead bias!)
+plt.legend()
+plt.title('Regimes Detected by HMM')
+plt.show()
+
+# calculate returns (shift by 1 to avoid look-ahead bias)
 test_data['Strategy_Returns'] = test_data['Signal'].shift(1) * test_data['Returns']
 
-# 5. Calculate Cumulative Growth
+# calculate cumulative growth
 test_data['Cumulative_Market'] = np.exp(test_data['Returns'].cumsum())
 test_data['Cumulative_Strategy'] = np.exp(test_data['Strategy_Returns'].cumsum())
 
+# plot test performance
+print("\nPlotting test performance:\n")
+plt.figure(figsize=(12, 6))
+plt.plot(test_data['Cumulative_Market'], label='Buy & Hold', color='gray')
+plt.plot(test_data['Cumulative_Strategy'], label='HMM Strategy', color='orange')
+plt.title('HMM Strategy vs Buy & Hold - Backtesting')
+plt.legend()
+plt.show()
+
+market_final_test = test_data['Cumulative_Market'].iloc[-1]
+strategy_final_test = test_data['Cumulative_Strategy'].iloc[-1]
+
+print(f"Test Period Market Return: {(market_final_test - 1):.2%}")
+print(f"Test Period Strategy Return: {(strategy_final_test - 1):.2%}")
+
+if strategy_final_test > market_final_test:
+    print("\n✅ The HMM beat the market!")
+else:
+    print("\n❌ The HMM underperformed. It might need different features or state counts.")
+
+# next phase - apply to the next day?
