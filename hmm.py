@@ -10,12 +10,12 @@ print("Phase 1: Fetch data")
 
 start_date = "2017-06-01"
 end_date = "2023-01-01"
-start_date_btc = "2017-06-01"
-end_date_btc = "2023-01-01"
+start_date_btc = "2016-01-01"
+end_date_btc = "2022-01-01"
 # use SPY (S&P 500 ETF) for a good mix of regimes
-data = yf.download("SPY", start=start_date, end=end_date)
+# data = yf.download("SPY", start=start_date, end=end_date)
 # BTC-USD for regimes in crypto
-# data = yf.download("BTC-USD", start=start_date_btc, end=end_date_btc)
+data = yf.download("BTC-USD", start=start_date_btc, end=end_date_btc)
 
 # using dataset of choice, separate into training and testing data
 dataset = data
