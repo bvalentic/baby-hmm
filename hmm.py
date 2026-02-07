@@ -9,12 +9,14 @@ from hmmlearn import hmm
 # Phase 1 - get data
 print("Fetching data...")
 
-# use SPY (S&P 500 ETF) for a good mix of regimes
 start_date = "2017-06-01"
 end_date = "2023-01-01"
+start_date_btc = "2017-06-01"
+end_date_btc = "2023-01-01"
+# use SPY (S&P 500 ETF) for a good mix of regimes
 data = yf.download("SPY", start=start_date, end=end_date)
-# BTC-USD for crypto generalities
-# data = yf.download("BTC-USD", start="2017-06-01", end="2023-01-01")
+# BTC-USD for regimes in crypto
+# data = yf.download("BTC-USD", start=start_date_btc, end=end_date_btc)
 
 # using dataset of choice, separate into training and testing data
 dataset = data
@@ -125,7 +127,7 @@ plt.legend()
 plt.show()
 
 market_value = train_data['Cumulative_Market']
-# print column?
+print(f"Market value? {market_value}")
 strategy_value = train_data['Cumulative_Strategy']
 
 # if(train_data['Cumulative_Market'] > train_data['Cumulative_Strategy']):
