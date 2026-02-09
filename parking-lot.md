@@ -45,4 +45,10 @@ for i in range(window_size, len(full_df)):
 # Add signals back to the dataframe (matched to the dates after the first window)
 new_results = full_df.iloc[window_size:].copy()
 new_results['Signal'] = signals
+
+new_results['Strategy_Returns'] = new_results['Signal'].shift(1) * new_results['Returns']
+new_results['Cumulative_Strategy'] = np.exp(new_results['Strategy_Returns'].cumsum())
+
+print(f"Rolling Strategy Final Value: {new_results['Cumulative_Strategy'].iloc[-1]:.2f}")
 ```
+
