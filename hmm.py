@@ -166,7 +166,7 @@ plt.show()
 
 print("\n|Phase 5: Analyze training results|")
 
-print("\% Return on investment during training period:")
+print("Return on investment during training period:")
 market_final_train = train_data['Cumulative_Market'].iloc[-1]
 strategy_final_train = train_data['Cumulative_Strategy'].iloc[-1]
 
@@ -225,7 +225,7 @@ plt.show()
 market_final_test = test_data['Cumulative_Market'].iloc[-1]
 strategy_final_test = test_data['Cumulative_Strategy'].iloc[-1]
 
-print("\% Return on investment during initial testing period:")
+print("Return on investment during initial testing period:")
 print(f"  Test Period Market Return: {(market_final_test - 1):.2%}")
 print(f"  Test Period Strategy Return: {(strategy_final_test - 1):.2%}")
 
