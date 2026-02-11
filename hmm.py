@@ -7,22 +7,25 @@ import matplotlib.pyplot as plt
 from hmmlearn import hmm
 from datetime import datetime
 
-print("Phase 1: Fetch data\n")
+print("\n|Phase 1: Fetch data|")
 
-start_date_spy = "2017-01-01"
+start_date_spy = "2018-01-01"
 end_date_spy = "2023-01-01"
 start_date_btc = "2017-06-01"
 end_date_btc = "2022-06-01"
 # use SPY (S&P 500 ETF) for a good mix of regimes
-# data = yf.download("SPY", start=start_date_spy, end=end_date_spy)
+data = yf.download("SPY", start=start_date_spy, end=end_date_spy)
 # BTC-USD for regimes in crypto
-data = yf.download("BTC-USD", start=start_date_btc, end=end_date_btc)
+# data = yf.download("BTC-USD", start=start_date_btc, end=end_date_btc)
 # Silver? Oil? Anything?
 
 # separate dataset into training and testing data
 train_size = int(len(data) * 0.70)
 train_data = data[:train_size]
 test_data = data[train_size:]
+# get the initial start and end dates of testing
+test_start = test_data['Close'].iloc[0]
+test_end = test_data['Close'].iloc[-1]
 
 # we need features that define the "state" of the market
 # common choices are returns and volatility
@@ -35,7 +38,7 @@ X = train_data[['Returns', 'Range']].values
 
 print(f"Data shape: {X.shape}")
 
-print("\nPhase 2: Build & train model")
+print("\n|Phase 2: Build & train model|")
 
 # number of market regimes
 n_components = 4
@@ -93,13 +96,13 @@ if len(positive_return_regimes) > 1:
 else:
     bull_index = positive_return_regimes[0]
 
-print(f"\nExpected bullish regime: {bull_index}")
+print(f"Expected bullish regime: {bull_index}")
 if(spike_exists):
     expected_spike_state = spike_index
     print("Spike regime detected!")
     print(f"Expected spike regime: {spike_index}")
 
-print("\nPhase 3: Plot and show")
+print("\n|Phase 3: Plot and verify|")
 
 # plot price, colored by state
 plt.figure(figsize=(15, 6))
@@ -114,24 +117,25 @@ plt.title('Regimes Detected by HMM - Training')
 # if able to display:
 plt.show()
 # if using container or headless:
-#plt.savefig('hmm_regimes.png')
-#print("Plot saved as hmm_regimes.png")
+#plt.savefig('hmm_regimes_training.png')
+#print("Plot saved as hmm_regimes_training.png")
 
 expected_bullish_state = bull_index
-observed_bullish_state = int(input("\nWhich state is the bullish state? "))
+observed_bullish_state = int(input("Which state is the bullish state? "))
+
 if (expected_bullish_state == observed_bullish_state):
     print("🤖 Observed bullish state matched expected state!")
 else:
     print("👀 Observed bullish state did not match expected state!")
 
 if(spike_exists):
-    observed_spike_state = int(input("\nWhich state is the spike? "))
+    observed_spike_state = int(input("Which state is the spike? "))
     if (expected_spike_state == observed_spike_state):
         print("🤖 Observed spike state matched expected state!")
     else:
         print("👀 Observed spike state did not match expected state!")
 
-print("\nNext phase: Testing against training data \n")
+print("\n|Phase 4: Test against training data|")
 
 # create a signal: 1 if in bullish state, 0 otherwise
 print("Setting bull market signal...")
@@ -152,7 +156,7 @@ train_data['Cumulative_Market'] = np.exp(train_data['Returns'].cumsum())
 train_data['Cumulative_Strategy'] = np.exp(train_data['Strategy_Returns'].cumsum())
 
 # plot training performance
-print("\nPlotting training performance:\n")
+print("Plotting training performance:")
 plt.figure(figsize=(12, 6))
 plt.plot(train_data['Cumulative_Market'], label='Buy & Hold', color='gray')
 plt.plot(train_data['Cumulative_Strategy'], label='HMM Strategy', color='orange')
@@ -160,24 +164,23 @@ plt.title('HMM Strategy vs Buy & Hold - Training')
 plt.legend()
 plt.show()
 
-print("Phase 4: Analyze training results")
+print("\n|Phase 5: Analyze training results|")
 
-# Use .iloc[-1] to get the value in the last row of that specific column
-print("Simple comparison: ")
+print("\% Return on investment during training period:")
 market_final_train = train_data['Cumulative_Market'].iloc[-1]
 strategy_final_train = train_data['Cumulative_Strategy'].iloc[-1]
 
-print(f"Training Period Market Return: {(market_final_train - 1):.2%}")
-print(f"Training Period Strategy Return: {(strategy_final_train - 1):.2%}")
+print(f"  Training Period Market Return: {(market_final_train - 1):.2%}")
+print(f"  Training Period Strategy Return: {(strategy_final_train - 1):.2%}")
+
+# TODO: calculate Sharpe ratio
 
 if market_final_train > strategy_final_train:
-    print("\n📈 Buy & Hold outperformed the HMM in training.\n")
+    print("📈 Buy & Hold outperformed the HMM in training.")
 else:
-    print("\n🤖 The HMM strategy beat the market in training!\n")
+    print("🤖 The HMM strategy beat the market in training!")
 
-# calculate Sharpe ratio
-
-print("Phase 5: Test on new data")
+print("\n|Phase 6: Initial test on new data|")
 
 # prepare the test features (must be the same columns as training)
 test_data['Returns'] = np.log(test_data['Close'] / test_data['Close'].shift(1))
@@ -200,7 +203,7 @@ for i in range(model.n_components):
     plt.plot(test_data.index[state], test_data['Close'][state], '.', label=f'State {i}', color=colors[i], markersize=3)
 
 plt.legend()
-plt.title('Regimes Detected by HMM - Backtesting')
+plt.title('Regimes Detected by HMM - Initial Testing')
 plt.show()
 
 # calculate returns (shift by 1 to avoid look-ahead bias)
@@ -211,7 +214,7 @@ test_data['Cumulative_Market'] = np.exp(test_data['Returns'].cumsum())
 test_data['Cumulative_Strategy'] = np.exp(test_data['Strategy_Returns'].cumsum())
 
 # plot test performance
-print("\nPlotting test performance:\n")
+print("Plotting initial test performance:")
 plt.figure(figsize=(12, 6))
 plt.plot(test_data['Cumulative_Market'], label='Buy & Hold', color='gray')
 plt.plot(test_data['Cumulative_Strategy'], label='HMM Strategy', color='orange')
@@ -222,8 +225,9 @@ plt.show()
 market_final_test = test_data['Cumulative_Market'].iloc[-1]
 strategy_final_test = test_data['Cumulative_Strategy'].iloc[-1]
 
-print(f"Test Period Market Return: {(market_final_test - 1):.2%}")
-print(f"Test Period Strategy Return: {(strategy_final_test - 1):.2%}")
+print("\% Return on investment during initial testing period:")
+print(f"  Test Period Market Return: {(market_final_test - 1):.2%}")
+print(f"  Test Period Strategy Return: {(strategy_final_test - 1):.2%}")
 
 if strategy_final_test > market_final_test:
     print("\n✅ The HMM beat the market in backtesting!")
