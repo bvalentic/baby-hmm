@@ -51,4 +51,3 @@ new_results['Cumulative_Strategy'] = np.exp(new_results['Strategy_Returns'].cums
 
 print(f"Rolling Strategy Final Value: {new_results['Cumulative_Strategy'].iloc[-1]:.2f}")
 ```
-

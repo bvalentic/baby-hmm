@@ -1,17 +1,19 @@
 # Baby-HMM
+
 AKA Baby's First HMM
 A growing set of hidden Markov models
 
 ## Getting Started
 
-### Create Virtual Env and Install Dependencies:
+### Create Virtual Env and Install Dependencies
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install -r requirements.txt
 ```
-### Run Program:
+
+### Run Program
 
 ```bash
 python hmm.py # or whichever py file you want to run
@@ -19,7 +21,7 @@ python hmm.py # or whichever py file you want to run
 
 ## Concepts
 
-### Summary of Key Concepts:
+### Summary of Key Concepts
 
 | Concept | Explanation |
 | --- | --- |
@@ -29,6 +31,7 @@ python hmm.py # or whichever py file you want to run
 | **Stationarity** | HMMs fail if you feed them raw prices (100, 101, 102). You must feed them changes (returns) or ratios (volatility). |
 
 ### Phases
+
 The program is broken down into phases:
 
 1. Fetch data
@@ -38,6 +41,7 @@ The program is broken down into phases:
 5. Test on new data
 
 ### Market Regimes
+
 Depending on the number of regimes you search for, they could be broken down into multiple different categories.
 Here's what I've broken the regimes down into, based purely on what I saw on the plots.
 
@@ -55,5 +59,4 @@ Here's what I've broken the regimes down into, based purely on what I saw on the
 | Bear | Low or no growth, low-med volatility | Low negative | High volume |
 | Crash | Sharp decline, high volatility | High negative | High volume |
 | Recovery | High growth, high volatility | High positive | Low volume |
-| --- | --- |
-
+| --- | --- | --- | --- |
