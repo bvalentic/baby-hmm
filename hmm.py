@@ -5,17 +5,19 @@ import pandas as pd
 import yfinance as yf
 import matplotlib.pyplot as plt
 from hmmlearn import hmm
+from datetime import datetime
 
 print("Phase 1: Fetch data\n")
 
-start_date = "2017-06-01"
-end_date = "2023-01-01"
+start_date_spy = "2017-06-01"
+end_date_spy = "2023-01-01"
 start_date_btc = "2016-01-01"
 end_date_btc = "2022-01-01"
 # use SPY (S&P 500 ETF) for a good mix of regimes
-data = yf.download("SPY", start=start_date, end=end_date)
+data = yf.download("SPY", start=start_date_spy, end=end_date_spy)
 # BTC-USD for regimes in crypto
 # data = yf.download("BTC-USD", start=start_date_btc, end=end_date_btc)
+# Silver? Oil? Anything?
 
 # separate dataset into training and testing data
 train_size = int(len(data) * 0.70)
@@ -63,6 +65,10 @@ for i in range(model.n_components):
     print(f"  Mean Returns: {model.means_[i][0]:.5f}")
     print(f"  Mean Range (Vol): {model.means_[i][1]:.5f}")
 
+    # TODO: Set regime variable (bull, bear, etc.) based on mean returns & range
+    # currently with 3-4 states the largest mean return is a "recovery" state, not "bull"
+    # but both are valid
+    # Or, just stick with 2 states? It's less precise and lower returns
     if model.means_[i][0] > bullish_mean_return:
         bullish_mean_return = model.means_[i][0]
         bull_index = i
@@ -153,7 +159,8 @@ test_data = test_data.copy() # Avoid SettingWithCopyWarning
 test_data['State'] = test_states
 test_data['Signal'] = np.where(test_data['State'] == observed_bullish_state, 1, 0)
 
-# plot predicted regimes
+print("Plotting predicted regimes:")
+plt.figure(figsize=(12, 6))
 for i in range(model.n_components):
     state = (test_states == i)
     plt.plot(test_data.index[state], test_data['Close'][state], '.', label=f'State {i}', color=colors[i], markersize=3)
@@ -185,8 +192,11 @@ print(f"Test Period Market Return: {(market_final_test - 1):.2%}")
 print(f"Test Period Strategy Return: {(strategy_final_test - 1):.2%}")
 
 if strategy_final_test > market_final_test:
-    print("\n✅ The HMM beat the market!")
+    print("\n✅ The HMM beat the market on its first test!")
 else:
     print("\n❌ The HMM underperformed. It might need different features or state counts.")
 
 # next phase - apply to the next day?
+# simulate up to present day?
+# Then provide best guess as to regime for current day and next day
+
