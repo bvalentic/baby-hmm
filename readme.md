@@ -46,7 +46,7 @@ Here's what I've broken the regimes down into, based purely on what I saw on the
 | 1 | Market (no variance) |
 | 2 | Bull, Bear |
 | 3 | Bull, Bear, Crash |
-| 4 | Bull, Bear, Crash, Recovery |
+| 4 | Bull, Bear, Crash, Recovery/Spike |
 | --- | --- |
 
 | Regime | Description | Mean Returns | Mean Range |

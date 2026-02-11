@@ -1,6 +1,6 @@
 # Parking Lot
 
-Code parking lot as more features are onboarded
+Markdown parking lot for miscellaneous code as more features are onboarded
 
 ```python
 from datetime import datetime
