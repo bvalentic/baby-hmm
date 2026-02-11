@@ -11,12 +11,12 @@ print("Phase 1: Fetch data\n")
 
 start_date_spy = "2017-06-01"
 end_date_spy = "2023-01-01"
-start_date_btc = "2016-01-01"
-end_date_btc = "2022-01-01"
+start_date_btc = "2017-06-01"
+end_date_btc = "2022-06-01"
 # use SPY (S&P 500 ETF) for a good mix of regimes
-data = yf.download("SPY", start=start_date_spy, end=end_date_spy)
+# data = yf.download("SPY", start=start_date_spy, end=end_date_spy)
 # BTC-USD for regimes in crypto
-# data = yf.download("BTC-USD", start=start_date_btc, end=end_date_btc)
+data = yf.download("BTC-USD", start=start_date_btc, end=end_date_btc)
 # Silver? Oil? Anything?
 
 # separate dataset into training and testing data
@@ -84,6 +84,12 @@ for i in range(model.n_components):
             bullish_mean_return = model.means_[i][0]
             bull_index = i
 
+print(f"\nExpected bullish regime: {bull_index}")
+if(spike_index):
+    expected_spike_state = spike_index
+    print("Spike regime detected!")
+    print(f"Expected spike regime: {spike_index}")
+
 print("\nPhase 3: Plot and show")
 
 # plot price, colored by state
@@ -102,23 +108,19 @@ plt.show()
 #plt.savefig('hmm_regimes.png')
 #print("Plot saved as hmm_regimes.png")
 
-print(f"\nExpected bullish regime: {bull_index}")
 expected_bullish_state = bull_index
-observed_bullish_state = int(input("Which state is the bullish state? "))
+observed_bullish_state = int(input("\nWhich state is the bullish state? "))
 if (expected_bullish_state == observed_bullish_state):
-    print("\n🤖 Observed bullish state matched expected state!")
+    print("🤖 Observed bullish state matched expected state!")
 else:
-    print("\n👀 Observed bullish state did not match expected state!")
+    print("👀 Observed bullish state did not match expected state!")
 
 if(spike_index):
-    expected_spike_state = bull_index
-    print("\nSpike regime detected!")
-    print(f"Expected spike state: {spike_index}")
-    observed_spike_state = int(input("Which state is the spike? "))
+    observed_spike_state = int(input("\nWhich state is the spike? "))
     if (expected_spike_state == observed_spike_state):
-        print("\n🤖 Observed spike state matched expected state!")
+        print("🤖 Observed spike state matched expected state!")
     else:
-        print("\n👀 Observed spike state did not match expected state!")
+        print("👀 Observed spike state did not match expected state!")
 
 print("\nNext phase: Testing against training data \n")
 
