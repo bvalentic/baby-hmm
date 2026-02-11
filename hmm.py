@@ -9,7 +9,7 @@ from datetime import datetime
 
 print("Phase 1: Fetch data\n")
 
-start_date_spy = "2017-06-01"
+start_date_spy = "2017-01-01"
 end_date_spy = "2023-01-01"
 start_date_btc = "2017-06-01"
 end_date_btc = "2022-06-01"
@@ -60,10 +60,12 @@ print("Model training complete.")
 bullish_mean_return = model.means_[0][0]
 bullish_mean_range = model.means_[0][1]
 bull_index = 0
+spike_exists = False
 
 # define colors for up to 4 states
 colors = ['green', 'red', 'blue', 'orange']
 potential_model_states = ["bull", "bear", "crash", "spike"]
+positive_return_regimes = []
 
 print("Means and variances of each state:")
 for i in range(model.n_components):
@@ -71,21 +73,28 @@ for i in range(model.n_components):
     print(f"  Mean Returns: {model.means_[i][0]:.5f}")
     print(f"  Mean Volatility: {model.means_[i][1]:.5f}")
 
-    # TODO: Set regime variable (bull, bear, etc.) based on mean returns & range
-    # currently with 3-4 states the largest mean return is a "recovery" state, not "bull"
-    # but both are valid
-    # Or, just stick with 2 states? It's less precise and lower returns
-    if model.means_[i][0] > bullish_mean_return:
+    if model.means_[i][0] > 0:
+        positive_return_regimes.append(i)
+
+if len(positive_return_regimes) > 1:
+    spike_exists = True
+    # Set regime variable (bull, bear, etc.) based on mean returns & range
+    for i in range(len(positive_return_regimes) - 1):
         # "spike" state has a positive return with higher volatility
-        if model.means_[i][1] > bullish_mean_range:
-            spike_mean_return = model.means_[i][0]
-            spike_index = i
+        regime = positive_return_regimes[i]
+        next_regime = positive_return_regimes[i + 1]
+        if model.means_[regime][1] > model.means_[next_regime][1]:
+            spike_index = regime
+            bull_index = next_regime
         else:
-            bullish_mean_return = model.means_[i][0]
-            bull_index = i
+            bull_index = regime
+            spike_index = next_regime
+# else only set the bull regime
+else:
+    bull_index = positive_return_regimes[0]
 
 print(f"\nExpected bullish regime: {bull_index}")
-if(spike_index):
+if(spike_exists):
     expected_spike_state = spike_index
     print("Spike regime detected!")
     print(f"Expected spike regime: {spike_index}")
@@ -115,7 +124,7 @@ if (expected_bullish_state == observed_bullish_state):
 else:
     print("👀 Observed bullish state did not match expected state!")
 
-if(spike_index):
+if(spike_exists):
     observed_spike_state = int(input("\nWhich state is the spike? "))
     if (expected_spike_state == observed_spike_state):
         print("🤖 Observed spike state matched expected state!")
@@ -127,10 +136,12 @@ print("\nNext phase: Testing against training data \n")
 # create a signal: 1 if in bullish state, 0 otherwise
 print("Setting bull market signal...")
 is_bull_regime = train_data['State'] == observed_bullish_state
-if(observed_spike_state):
+if(spike_exists):
     is_spike_regime = train_data['State'] == observed_spike_state
-
-train_data['Signal'] = np.where(is_bull_regime, 1, 0)
+    is_good_market = train_data['State'] == (observed_bullish_state or observed_spike_state)
+    train_data['Signal'] = np.where(is_good_market, 1, 0)
+else:
+    train_data['Signal'] = np.where(is_bull_regime, 1, 0)
 
 # calculate returns on HMM
 # We shift signal by 1 because we trade at the close based on today's state for tomorrow
