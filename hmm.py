@@ -54,35 +54,41 @@ train_data['State'] = hidden_states
 
 print("Model training complete.")
 
+# define initial bull state as state 0
 bullish_mean_return = model.means_[0][0]
+bullish_mean_range = model.means_[0][1]
 bull_index = 0
+
+# define colors for up to 4 states
+colors = ['green', 'red', 'blue', 'orange']
+potential_model_states = ["bull", "bear", "crash", "spike"]
 
 print("Means and variances of each state:")
 for i in range(model.n_components):
     print(f"State {i}:")
     print(f"  Mean Returns: {model.means_[i][0]:.5f}")
-    print(f"  Mean Range (Vol): {model.means_[i][1]:.5f}")
+    print(f"  Mean Volatility: {model.means_[i][1]:.5f}")
 
     if model.means_[i][0] > bullish_mean_return:
-        bullish_mean_return = model.means_[i][0]
-        bull_index = i
-
-print(f"\nExpected bullish regime: {bull_index}")
+        # "spike" state has a positive return with higher volatility
+        if model.means_[i][1] > bullish_mean_range:
+            spike_mean_return = model.means_[i][0]
+            spike_index = i
+        else:
+            bullish_mean_return = model.means_[i][0]
+            bull_index = i
 
 print("\nPhase 3: Plot and show")
 
 # plot price, colored by state
 plt.figure(figsize=(15, 6))
 
-# define colors for 4 states
-colors = ['green', 'red', 'blue', 'orange'] 
-
 for i in range(model.n_components):
     state = (hidden_states == i)
     plt.plot(train_data.index[state], train_data['Close'][state], '.', label=f'State {i}', color=colors[i], markersize=3)
 
 plt.legend()
-plt.title('Regimes Detected by HMM')
+plt.title('Regimes Detected by HMM - Training')
 
 # if able to display:
 plt.show()
@@ -90,6 +96,7 @@ plt.show()
 #plt.savefig('hmm_regimes.png')
 #print("Plot saved as hmm_regimes.png")
 
+print(f"\nExpected bullish regime: {bull_index}")
 expected_bullish_state = bull_index
 observed_bullish_state = int(input("Which state is the bullish state? "))
 if (expected_bullish_state == observed_bullish_state):
@@ -97,11 +104,25 @@ if (expected_bullish_state == observed_bullish_state):
 else:
     print("\n👀 Observed bullish state did not match expected state!")
 
+if(spike_index):
+    expected_spike_state = bull_index
+    print("\nSpike regime detected!")
+    print(f"Expected spike state: {spike_index}")
+    observed_spike_state = int(input("Which state is the spike? "))
+    if (expected_spike_state == observed_spike_state):
+        print("\n🤖 Observed spike state matched expected state!")
+    else:
+        print("\n👀 Observed spike state did not match expected state!")
+
 print("\nNext phase: Testing against training data \n")
 
 # create a signal: 1 if in bullish state, 0 otherwise
 print("Setting bull market signal...")
-train_data['Signal'] = np.where(train_data['State'] == observed_bullish_state, 1, 0)
+is_bull_regime = train_data['State'] == observed_bullish_state
+if(observed_spike_state):
+    is_spike_regime = train_data['State'] == observed_spike_state
+
+train_data['Signal'] = np.where(is_bull_regime, 1, 0)
 
 # calculate returns on HMM
 # We shift signal by 1 because we trade at the close based on today's state for tomorrow
@@ -159,7 +180,7 @@ for i in range(model.n_components):
     plt.plot(test_data.index[state], test_data['Close'][state], '.', label=f'State {i}', color=colors[i], markersize=3)
 
 plt.legend()
-plt.title('Regimes Detected by HMM')
+plt.title('Regimes Detected by HMM - Backtesting')
 plt.show()
 
 # calculate returns (shift by 1 to avoid look-ahead bias)
@@ -185,8 +206,12 @@ print(f"Test Period Market Return: {(market_final_test - 1):.2%}")
 print(f"Test Period Strategy Return: {(strategy_final_test - 1):.2%}")
 
 if strategy_final_test > market_final_test:
-    print("\n✅ The HMM beat the market!")
+    print("\n✅ The HMM beat the market in backtesting!")
 else:
     print("\n❌ The HMM underperformed. It might need different features or state counts.")
 
-# next phase - apply to the next day?
+# next phase - rolling window and walk-forward?
+# roll up to present day; 
+# guess latest regime for most recent market close; 
+# compare with actual results for a final test.
+# then apply model to the next day?
