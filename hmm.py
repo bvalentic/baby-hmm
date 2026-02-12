@@ -54,7 +54,8 @@ model = hmm.GaussianHMM(
     covariance_type, 
     n_iter=100, 
     min_covar=min_covar,
-    algorithm="viterbi"
+    algorithm="viterbi",
+    init_params="stmc", # Only initialize parameters once
 )
 
 print("Fitting model to data...")
@@ -130,33 +131,28 @@ plt.show()
 #plt.savefig('hmm_regimes_training.png')
 #print("Plot saved as hmm_regimes_training.png")
 
-expected_bullish_state = bull_index
-observed_bullish_state = int(input("Which state is the bullish state? "))
+# observed_bullish_state = int(input("Which state is the bullish state? "))
 
-if (expected_bullish_state == observed_bullish_state):
-    print("🤖 Observed bullish state matched expected state!")
-else:
-    print("👀 Observed bullish state did not match expected state!")
+# if (expected_bullish_state == observed_bullish_state):
+#     print("🤖 Observed bullish state matched expected state!")
+# else:
+#     print("👀 Observed bullish state did not match expected state!")
 
-if(spike_exists):
-    observed_spike_state = int(input("Which state is the spike? "))
-    if (expected_spike_state == observed_spike_state):
-        print("🤖 Observed spike state matched expected state!")
-    else:
-        print("👀 Observed spike state did not match expected state!")
+# if(spike_exists):
+#     observed_spike_state = int(input("Which state is the spike? "))
+#     if (expected_spike_state == observed_spike_state):
+#         print("🤖 Observed spike state matched expected state!")
+#     else:
+#         print("👀 Observed spike state did not match expected state!")
 
 print("\n|Phase 4: Test against training data|")
 
 # create a signal: 1 if in bullish state, 0 otherwise
 print("Setting bull market signal...")
-is_bull_regime = train_data['State'] == observed_bullish_state
-if(spike_exists):
-    # added code to observe spike regime, but using it causes bad returns
-    is_spike_regime = train_data['State'] == observed_spike_state
-    is_good_market = train_data['State'] == (observed_bullish_state or observed_spike_state)
-    train_data['Signal'] = np.where(is_bull_regime, 1, 0)
-else:
-    train_data['Signal'] = np.where(is_bull_regime, 1, 0)
+is_bull_state = train_data['State'] == bull_index
+if (spike_exists):
+    is_spike_state = train_data['State'] == spike_index
+train_data['Signal'] = np.where(is_bull_state, 1, 0)
 
 # calculate returns on HMM
 # We shift signal by 1 because we trade at the close based on today's state for tomorrow
@@ -205,7 +201,7 @@ test_states = model.predict(X_test)
 # add to dataframe and calculate returns
 test_data = test_data.copy() # Avoid SettingWithCopyWarning
 test_data['State'] = test_states
-test_data['Signal'] = np.where(test_data['State'] == observed_bullish_state, 1, 0)
+test_data['Signal'] = np.where(test_data['State'] == bull_index, 1, 0)
 
 print("Plotting predicted regimes:")
 plt.figure(figsize=(12, 6))
@@ -280,19 +276,19 @@ for i in range(window_size, len(full_df)):
     try:
         # 1. Added min_covar to prevent the "non-positive definite" error
         # 2. Switched to covariance_type='diag' for better stability
-        model = hmm.GaussianHMM(
-            n_components=3, 
-            covariance_type="diag", 
-            n_iter=100, 
-            min_covar=1e-3, # The "floor" that prevents math explosions
-            random_state=42
-        )
+        # model = hmm.GaussianHMM(
+        #     n_components=3, 
+        #     covariance_type="diag", 
+        #     n_iter=100, 
+        #     min_covar=1e-3, # The "floor" that prevents math explosions
+        #     random_state=42
+        # )
         model.fit(X_train)
         
-        bull_state = np.argmax(model.means_[:, 0])
+        bull_indeces = np.where(model.means_[:, 0] > 0)[0]
         current_state = model.predict(current_features)[0]
         
-        signal = 1 if current_state == bull_state else 0
+        signal = 1 if current_state in bull_indeces else 0
 
         signals.append(signal)
         last_valid_signal = signal # Save this in case the next loop fails
