@@ -43,9 +43,19 @@ print("\n|Phase 2: Build & train model|")
 # number of market regimes
 n_components = 4
 # "full" allows features to correlate within a state
-covariance_type = "full"
+# "diag" allows features to be modeled w/o diagonal correlation
+covariance_type = "diag"
+# Added min_covar to prevent the "non-positive definite" error
+min_covar=1e-3
 print("Creating model...")
-model = hmm.GaussianHMM(n_components, covariance_type, algorithm="viterbi", n_iter=100)
+
+model = hmm.GaussianHMM(
+    n_components, 
+    covariance_type, 
+    n_iter=100, 
+    min_covar=min_covar,
+    algorithm="viterbi"
+)
 
 print("Fitting model to data...")
 model.fit(X)
@@ -141,9 +151,10 @@ print("\n|Phase 4: Test against training data|")
 print("Setting bull market signal...")
 is_bull_regime = train_data['State'] == observed_bullish_state
 if(spike_exists):
+    # added code to observe spike regime, but using it causes bad returns
     is_spike_regime = train_data['State'] == observed_spike_state
     is_good_market = train_data['State'] == (observed_bullish_state or observed_spike_state)
-    train_data['Signal'] = np.where(is_good_market, 1, 0)
+    train_data['Signal'] = np.where(is_bull_regime, 1, 0)
 else:
     train_data['Signal'] = np.where(is_bull_regime, 1, 0)
 
@@ -245,45 +256,70 @@ print("Fetching new data up to today...")
 last_date = test_data.index[-1]
 new_data = yf.download(data_set, start=last_date, end=datetime.now().strftime('%Y-%m-%d'))
 
-# Combine with a bit of old data so the first "new" prediction has a training window
-print("Creating new ")
+# combine with a bit of old data so the first "new" prediction has a training window
+print("Creating new data series for rolling window...")
 full_df = pd.concat([test_data.tail(500), new_data]) 
 full_df['Returns'] = np.log(full_df['Close'] / full_df['Close'].shift(1))
 full_df['Range'] = (full_df['High'] - full_df['Low']) / full_df['Close']
 full_df.dropna(inplace=True)
 
-# 2. The Walk-Forward Loop
-window_size = 252 # Use 1 year of trading days to train
+# Use 1 year of trading days to train
+window_size = 252 
 signals = []
 
 # We start from the window_size and move 1 step at a time
+# Initialize with a default signal (e.g., 0 for Cash)
+signals = []
+last_valid_signal = 0 
+
 for i in range(window_size, len(full_df)):
-    # Slice the training window
     train_window = full_df.iloc[i-window_size:i]
     X_train = train_window[['Returns', 'Range']].values
-    
-    # Current day features to predict
     current_features = full_df.iloc[i:i+1][['Returns', 'Range']].values
     
-    # Fit model on the window
-    model = hmm.GaussianHMM(n_components=3, covariance_type="full", n_iter=100)
-    model.fit(X_train)
-    
-    # Identify the 'Bull' state programmatically (highest mean return)
-    # This prevents the "State Flipping" issue I mentioned earlier!
-    bull_state = np.argmax(model.means_[:, 0])
-    
-    # Predict today's state
-    current_state = model.predict(current_features)[0]
-    
-    # Record signal: 1 if Bull, 0 otherwise
-    signals.append(1 if current_state == bull_state else 0)
+    try:
+        # 1. Added min_covar to prevent the "non-positive definite" error
+        # 2. Switched to covariance_type='diag' for better stability
+        model = hmm.GaussianHMM(
+            n_components=3, 
+            covariance_type="diag", 
+            n_iter=100, 
+            min_covar=1e-3, # The "floor" that prevents math explosions
+            random_state=42
+        )
+        model.fit(X_train)
+        
+        bull_state = np.argmax(model.means_[:, 0])
+        current_state = model.predict(current_features)[0]
+        
+        signal = 1 if current_state == bull_state else 0
 
-# Add signals back to the dataframe (matched to the dates after the first window)
+        signals.append(signal)
+        last_valid_signal = signal # Save this in case the next loop fails
+        
+    except Exception as e:
+        # If the model fails to converge, don't crash! 
+        # Just use the signal from the previous day.
+        signals.append(last_valid_signal)
+        continue
+
+# Add the signals to your dataframe
 new_results = full_df.iloc[window_size:].copy()
 new_results['Signal'] = signals
 
 new_results['Strategy_Returns'] = new_results['Signal'].shift(1) * new_results['Returns']
+new_results['Cumulative_Market'] = np.exp(new_results['Returns'].cumsum())
 new_results['Cumulative_Strategy'] = np.exp(new_results['Strategy_Returns'].cumsum())
 
-print(f"Rolling Strategy Final Value: {new_results['Cumulative_Strategy'].iloc[-1]:.2f}")
+market_final = new_results['Cumulative_Market'].iloc[-1]
+strategy_final = new_results['Cumulative_Strategy'].iloc[-1]
+
+print(f"CLassic Market Final Value on {new_data.index[-1]}:")
+print(f"  {market_final:.2%}")
+
+print(f"Rolling Strategy Final Value on {new_data.index[-1]}:")
+print(f"  {strategy_final:.2%}")
+
+# TODO: plot new series of states and returns
+
+# TODO: return 10 dates and states, note bull
