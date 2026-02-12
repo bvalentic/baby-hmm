@@ -54,8 +54,8 @@ model = hmm.GaussianHMM(
     covariance_type, 
     n_iter=100, 
     min_covar=min_covar,
-    algorithm="viterbi",
-    init_params="stmc", # Only initialize parameters once
+    #algorithm="viterbi",
+    #init_params="stmc", # Only initialize parameters once
 )
 
 print("Fitting model to data...")
@@ -124,7 +124,26 @@ for i in range(model.n_components):
 
 plt.legend()
 plt.title('Regimes Detected by HMM - Training')
+
+# if able to display:
 plt.show()
+# if using container or headless:
+#plt.savefig('hmm_regimes_training.png')
+#print("Plot saved as hmm_regimes_training.png")
+
+# observed_bullish_state = int(input("Which state is the bullish state? "))
+
+# if (expected_bullish_state == observed_bullish_state):
+#     print("🤖 Observed bullish state matched expected state!")
+# else:
+#     print("👀 Observed bullish state did not match expected state!")
+
+# if(spike_exists):
+#     observed_spike_state = int(input("Which state is the spike? "))
+#     if (expected_spike_state == observed_spike_state):
+#         print("🤖 Observed spike state matched expected state!")
+#     else:
+#         print("👀 Observed spike state did not match expected state!")
 
 print("\n|Phase 4: Test against training data|")
 
@@ -231,13 +250,11 @@ else:
 print("|Phase 7: Rolling window|")
 print("Fetching new data up to today...")
 last_date = test_data.index[-1]
-# TODO: Check new_data dates
 new_data = yf.download(data_set, start=last_date, end=datetime.now().strftime('%Y-%m-%d'))
 
 # combine with a bit of old data so the first "new" prediction has a training window
 print("Creating new data series for rolling window...")
 full_df = pd.concat([test_data.tail(500), new_data]) 
-print(f"Length of full_df: {len(full_df)}")
 full_df['Returns'] = np.log(full_df['Close'] / full_df['Close'].shift(1))
 full_df['Range'] = (full_df['High'] - full_df['Low']) / full_df['Close']
 full_df.dropna(inplace=True)
@@ -246,25 +263,27 @@ full_df.dropna(inplace=True)
 # 252 trading days in a year
 window_size = 252 
 signals = []
+last_valid_signal = 0 
 
 for i in range(window_size, len(full_df)):
-    print(f"Training window: {i}")
     train_window = full_df.iloc[i-window_size:i]
     X_train = train_window[['Returns', 'Range']].values
     current_features = full_df.iloc[i:i+1][['Returns', 'Range']].values
     
     try:
-        print("Fitting new window...")
         model.fit(X_train)
         
         bull_indeces = np.where(model.means_[:, 0] > 0)[0]
         current_state = model.predict(current_features)[0]
         
         signal = 1 if current_state in bull_indeces else 0
+
         signals.append(signal)
+        last_valid_signal = signal
+        
     except Exception as e:
         # if model fails to converge, use signal from previous day
-        signals.append(signals[-1] if signals else 0)
+        signals.append(last_valid_signal)
         continue
 
 # Add the signals to your dataframe
@@ -278,21 +297,12 @@ new_results['Cumulative_Strategy'] = np.exp(new_results['Strategy_Returns'].cums
 market_final = new_results['Cumulative_Market'].iloc[-1]
 strategy_final = new_results['Cumulative_Strategy'].iloc[-1]
 
-plt.figure(figsize=(12, 6))
-plt.plot(new_results['Cumulative_Market'], label='Buy & Hold', color='black')
-plt.plot(new_results['Cumulative_Strategy'], label='HMM Strategy', color='green')
-plt.title(f'HMM Strategy vs Buy & Hold: New Results')
-plt.legend()
-plt.show()
-
-print(f"Classic Market Final Value on {new_results.index[-1]}:")
+print(f"CLassic Market Final Value on {new_data.index[-1]}:")
 print(f"  {market_final:.2%}")
 
 print(f"Rolling Strategy Final Value on {new_data.index[-1]}:")
 print(f"  {strategy_final:.2%}")
 
-print("Bull states:")
-for i in range(0, len(positive_return_regimes)):
-    print(f"  {positive_return_regimes[i]}")
+# TODO: plot new series of states and returns
 
-# TODO: return 10 most recent dates and states
+# TODO: return 10 dates and states, note bull
