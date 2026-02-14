@@ -13,8 +13,8 @@ print("\n|Phase 1: Fetch data|")
 data_set = "SPY"
 # BTC-USD for regimes in crypto
 # Silver? Oil? Anything?
-start_date_spy = "2020-01-01"
-end_date_spy = "2024-01-01"
+start_date_spy = "2019-01-01"
+end_date_spy = "2023-01-01"
 start_date_btc = "2017-06-01"
 end_date_btc = "2022-06-01"
 data = yf.download(data_set, start=start_date_spy, end=end_date_spy)
@@ -106,13 +106,9 @@ plt.show()
 print("\n|Phase 4: Test against training data|")
 train_bull_state_list = []
 # create a signal: 1 if in bullish state, 0 otherwise
+# for now, grabbing any state with positive mean returns (not factoring in volatility)
 print("Setting bull market signal...")
-# for i in range(0, len(train_data['State'])):
-#     state = train_data['State'].iloc[i]
-#     is_bull_state = 1 if state in positive_return_regimes else 0
-#     # print(f"State {i}: {state} Is bull state: {is_bull_state}")
-#     train_bull_state_list.append(is_bull_state)
-train_data['Signal'] = np.where(train_data['State'].isin( positive_return_regimes), 1, 0)
+train_data['Signal'] = np.where(train_data['State'].isin(positive_return_regimes), 1, 0)
 
 
 # calculate returns on HMM
@@ -163,11 +159,14 @@ print(f"Size of test data frame: {len(test_data['State'])}")
 
 # add to dataframe and calculate returns
 test_data = test_data.copy() # Avoid SettingWithCopyWarning
-print("Setting bull market signal...")
-positive_state_indices = np.where(model.means_[:, 0] > 0)[0]
+print("Resetting bull market signal...")
+positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
+print("Positive return regime(s):")
+for i in range(0, len(positive_return_regimes)):
+    print(f"  {positive_return_regimes[i]}")
 
 # signal = 1 if current_state in positive_state_indices else 0
-test_data['Signal'] = np.where(test_data['State'].isin(positive_state_indices), 1, 0)
+test_data['Signal'] = np.where(test_data['State'].isin(positive_return_regimes), 1, 0)
 
 print("Plotting predicted regimes:")
 plt.figure(figsize=(12, 6))
@@ -214,17 +213,22 @@ else:
 # then apply model to the next day?
 
 print("\n|Phase 7: Rolling window|")
-last_date = test_data.index[-1]
-print(f"Last date of test window: {last_date.strftime("%Y-%m-%d")}")
+last_date = test_data.index[-1].strftime("%Y-%m-%d")
+
+print(f"Last date of test window: {last_date}")
 print(f"Fetching data up to {datetime.today().strftime("%Y-%m-%d")}")
+
+# data = yf.download(data_set, start=start_date_spy, end=end_date_spy)
 new_data = yf.download(data_set, start=last_date, end=datetime.today().strftime('%Y-%m-%d'))
 
 # combine with a bit of old data so the first "new" prediction has a training window
 print("Creating new data series for rolling window...")
 # use most recent trading year from old data
 full_df = pd.concat([test_data.tail(252), new_data]) 
+
 print(f"Size of full data frame: {len(full_df)}")
-print(f"End date: {full_df.index[-1]}")
+print(f"End date: {full_df.index[-1].strftime("%Y-%m-%d")}")
+
 full_df['Returns'] = np.log(full_df['Close'] / full_df['Close'].shift(1))
 full_df['Range'] = (full_df['High'] - full_df['Low']) / full_df['Close']
 # full_df.dropna(inplace=True)
@@ -233,36 +237,40 @@ full_df['Range'] = (full_df['High'] - full_df['Low']) / full_df['Close']
 # 252 trading days in a year
 window_size = 252 
 signals = []
-print(f"Size of new data: {len(new_data)}")
-print(f"End date: {new_data.index[-1]}")
-print(f"Size of total data frame: {len(full_df)}")
-print(f"End date: {full_df.index[-1]}")
 
-for i in range(0, len(full_df)):
-    print(f"Training window: {i}")
-    train_window = full_df.iloc[i:window_size+i]
-    X_train = train_window[['Returns', 'Range']].values
+print(f"Size of full data frame after dropna: {len(full_df)}")
+print(f"End date: {full_df.index[-1].strftime("%Y-%m-%d")}")
+
+for i in range(window_size, len(full_df)):
+    X_train = full_df.iloc[i-window_size:i][['Returns', 'Range']].values
     current_features = full_df.iloc[i:i+1][['Returns', 'Range']].values
     
     try:
         model.fit(X_train)
         
         bull_indices = np.where(model.means_[:, 0] > 0)[0]
+
+        print(f"Rolling window run: {i}")
         print(f"Bull indices: {bull_indices}")
 
         current_state = model.predict(current_features)[0]
+
         print(f"Next state predicted: {current_state}")
         
         signal = 1 if current_state in bull_indices else 0
+
         print(f"Next state is bull: {bool(signal)}")
+
         signals.append(signal)
     except Exception as e:
         # if model fails to converge, use signal from previous day
-        # print(f"Exception caught on window {i}!")
+        print(f"Exception caught on window {i}! Exception: {e}")
         signals.append(signals[-1] if signals else 0)
         continue
 
 # Add the signals to your dataframe
+# full_results = full_df.copy()
+# new_results = full_results[window_size:]
 new_results = full_df.copy()
 new_results['Signal'] = signals
 
@@ -283,7 +291,7 @@ plt.show()
 print(f"Classic Market Final Value on {new_results.index[-1]}:")
 print(f"  {market_final:.2%}")
 
-print(f"Rolling Strategy Final Value on {new_data.index[-1]}:")
+print(f"Rolling Strategy Final Value on {full_df.index[-1]}:")
 print(f"  {strategy_final:.2%}")
 
 print("Bull state(s):")
