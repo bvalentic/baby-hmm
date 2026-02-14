@@ -13,8 +13,8 @@ print("\n|Phase 1: Fetch data|")
 data_set = "SPY"
 # BTC-USD for regimes in crypto
 # Silver? Oil? Anything?
-start_date_spy = "2018-01-01"
-end_date_spy = "2023-01-01"
+start_date_spy = "2020-01-01"
+end_date_spy = "2024-01-01"
 start_date_btc = "2017-06-01"
 end_date_btc = "2022-06-01"
 data = yf.download(data_set, start=start_date_spy, end=end_date_spy)
@@ -45,17 +45,24 @@ n_components = 4
 # "full" allows features to correlate within a state
 # "diag" allows features to be modeled w/o diagonal correlation
 covariance_type = "diag"
-# Added min_covar to prevent the "non-positive definite" error
+# number of model iterations
+n_iter = 100
+# add min_covar to prevent "non-positive definite" error
 min_covar=1e-3
+# use Viterbi algorithm
+algorithm = "viterbi"
+# reinitialize parameters each time
+init_params = ""
+
 print("Creating model...")
 
 model = hmm.GaussianHMM(
-    n_components, 
-    covariance_type, 
-    n_iter=100, 
+    n_components=n_components, 
+    covariance_type=covariance_type,
     min_covar=min_covar,
-    algorithm="viterbi",
-    init_params="" # reinitialize parameters each time
+    n_iter=n_iter, 
+    algorithm=algorithm,
+    init_params=init_params
 )
 model.fit(X)
 
@@ -152,7 +159,7 @@ X_test = test_data[['Returns', 'Range']].values
 # predict uses the existing model parameters to predict the next state
 test_states = model.predict(X_test)
 test_data['State'] = test_states
-print(f"Size of test states: {len(test_data['State'])}")
+print(f"Size of test data frame: {len(test_data['State'])}")
 
 # add to dataframe and calculate returns
 test_data = test_data.copy() # Avoid SettingWithCopyWarning
@@ -208,14 +215,14 @@ else:
 
 print("\n|Phase 7: Rolling window|")
 last_date = test_data.index[-1]
-print(f"Last date of test window: {last_date}")
-print(f"Fetching data up to {datetime.now()}")
-# TODO: Check new_data dates
-new_data = yf.download(data_set, start=last_date, end=datetime.now().strftime('%Y-%m-%d'))
+print(f"Last date of test window: {last_date.strftime("%Y-%m-%d")}")
+print(f"Fetching data up to {datetime.today().strftime("%Y-%m-%d")}")
+new_data = yf.download(data_set, start=last_date, end=datetime.today().strftime('%Y-%m-%d'))
 
 # combine with a bit of old data so the first "new" prediction has a training window
 print("Creating new data series for rolling window...")
-full_df = pd.concat([test_data.tail(500), new_data]) 
+# use most recent trading year from old data
+full_df = pd.concat([test_data.tail(252), new_data]) 
 print(f"Size of full data frame: {len(full_df)}")
 print(f"End date: {full_df.index[-1]}")
 full_df['Returns'] = np.log(full_df['Close'] / full_df['Close'].shift(1))
@@ -232,7 +239,7 @@ print(f"Size of total data frame: {len(full_df)}")
 print(f"End date: {full_df.index[-1]}")
 
 for i in range(0, len(full_df)):
-    # print(f"Training window: {i}")
+    print(f"Training window: {i}")
     train_window = full_df.iloc[i:window_size+i]
     X_train = train_window[['Returns', 'Range']].values
     current_features = full_df.iloc[i:i+1][['Returns', 'Range']].values
@@ -241,12 +248,13 @@ for i in range(0, len(full_df)):
         model.fit(X_train)
         
         bull_indices = np.where(model.means_[:, 0] > 0)[0]
-        print(f"Bull indeces: {bull_indices}")
+        print(f"Bull indices: {bull_indices}")
 
         current_state = model.predict(current_features)[0]
         print(f"Next state predicted: {current_state}")
         
         signal = 1 if current_state in bull_indices else 0
+        print(f"Next state is bull: {bool(signal)}")
         signals.append(signal)
     except Exception as e:
         # if model fails to converge, use signal from previous day
@@ -286,8 +294,8 @@ for i in range(0, len(positive_return_regimes)):
 end_date_range = 10
 
 # make table
-print("|--- Date ---|--- State ---|")
-for i in range(0, end_date_range):
-    # reverse index to go in order of dates, from -10 to -1
-    index = 10 - i
-    print(f"| {new_results.index[-index]} | {new_results['State'].iloc[-index]} |")
+# print("|--- Date ---|--- State ---|")
+# for i in range(0, end_date_range):
+#     # reverse index to go in order of dates, from -10 to -1
+#     index = 10 - i
+#     print(f"| {new_results.index[-index]} | {new_results['State'].iloc[-index]} |")
