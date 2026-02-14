@@ -13,8 +13,8 @@ print("\n|Phase 1: Fetch data|")
 data_set = "SPY"
 # BTC-USD for regimes in crypto
 # Silver? Oil? Anything?
-start_date_spy = "2020-01-01"
-end_date_spy = "2024-01-01"
+start_date_spy = "2018-01-01"
+end_date_spy = "2023-01-01"
 start_date_btc = "2017-06-01"
 end_date_btc = "2022-06-01"
 data = yf.download(data_set, start=start_date_spy, end=end_date_spy)
@@ -45,38 +45,41 @@ n_components = 4
 # "full" allows features to correlate within a state
 # "diag" allows features to be modeled w/o diagonal correlation
 covariance_type = "diag"
-# number of model iterations
-n_iter = 100
-# add min_covar to prevent "non-positive definite" error
+# Added min_covar to prevent the "non-positive definite" error
 min_covar=1e-3
-# use Viterbi algorithm
-algorithm = "viterbi"
-# reinitialize parameters each time
-init_params = ""
-
 print("Creating model...")
 
 model = hmm.GaussianHMM(
-    n_components=n_components, 
-    covariance_type=covariance_type,
+    n_components, 
+    covariance_type, 
+    n_iter=100, 
     min_covar=min_covar,
-    n_iter=n_iter, 
-    algorithm=algorithm,
-    init_params=init_params
+    #algorithm="viterbi",
+    #init_params="stmc", # Only initialize parameters once
 )
+
+print("Fitting model to data...")
 model.fit(X)
 
 # model estimates which "hidden state" generated the data for each day
+print("Estimating states...")
 hidden_states = model.predict(X)
 
 # add states back to the dataframe for analysis
 train_data['State'] = hidden_states
 
-print("Initial model training complete.")
+print("Model training complete.")
+
+# define initial bull state as state 0
+bullish_mean_return = model.means_[0][0]
+bullish_mean_range = model.means_[0][1]
+bull_index = 0
+spike_exists = False
 
 # define colors for up to 4 states
 colors = ['green', 'red', 'blue', 'orange']
 potential_model_states = ["bull", "bear", "crash", "spike"]
+positive_return_regimes = []
 
 print("Means and variances of each state:")
 for i in range(model.n_components):
@@ -84,11 +87,31 @@ for i in range(model.n_components):
     print(f"  Mean Returns: {model.means_[i][0]:.5f}")
     print(f"  Mean Volatility: {model.means_[i][1]:.5f}")
 
-positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
+    if model.means_[i][0] > 0:
+        positive_return_regimes.append(i)
 
-print("Positive return regime(s):")
-for i in range(0, len(positive_return_regimes)):
-    print(f"  {positive_return_regimes[i]}")
+if len(positive_return_regimes) > 1:
+    spike_exists = True
+    # Set regime variable (bull, bear, etc.) based on mean returns & range
+    for i in range(len(positive_return_regimes) - 1):
+        # "spike" state has a positive return with higher volatility
+        regime = positive_return_regimes[i]
+        next_regime = positive_return_regimes[i + 1]
+        if model.means_[regime][1] > model.means_[next_regime][1]:
+            spike_index = regime
+            bull_index = next_regime
+        else:
+            bull_index = regime
+            spike_index = next_regime
+# else only set the bull regime
+else:
+    bull_index = positive_return_regimes[0]
+
+print(f"Expected bullish regime: {bull_index}")
+if(spike_exists):
+    expected_spike_state = spike_index
+    print("Spike regime detected!")
+    print(f"Expected spike regime: {spike_index}")
 
 print("\n|Phase 3: Plot and verify|")
 
@@ -101,19 +124,35 @@ for i in range(model.n_components):
 
 plt.legend()
 plt.title('Regimes Detected by HMM - Training')
+
+# if able to display:
 plt.show()
+# if using container or headless:
+#plt.savefig('hmm_regimes_training.png')
+#print("Plot saved as hmm_regimes_training.png")
+
+# observed_bullish_state = int(input("Which state is the bullish state? "))
+
+# if (expected_bullish_state == observed_bullish_state):
+#     print("🤖 Observed bullish state matched expected state!")
+# else:
+#     print("👀 Observed bullish state did not match expected state!")
+
+# if(spike_exists):
+#     observed_spike_state = int(input("Which state is the spike? "))
+#     if (expected_spike_state == observed_spike_state):
+#         print("🤖 Observed spike state matched expected state!")
+#     else:
+#         print("👀 Observed spike state did not match expected state!")
 
 print("\n|Phase 4: Test against training data|")
-train_bull_state_list = []
+
 # create a signal: 1 if in bullish state, 0 otherwise
 print("Setting bull market signal...")
-# for i in range(0, len(train_data['State'])):
-#     state = train_data['State'].iloc[i]
-#     is_bull_state = 1 if state in positive_return_regimes else 0
-#     # print(f"State {i}: {state} Is bull state: {is_bull_state}")
-#     train_bull_state_list.append(is_bull_state)
-train_data['Signal'] = np.where(train_data['State'].isin( positive_return_regimes), 1, 0)
-
+is_bull_state = train_data['State'] == bull_index
+if (spike_exists):
+    is_spike_state = train_data['State'] == spike_index
+train_data['Signal'] = np.where(is_bull_state, 1, 0)
 
 # calculate returns on HMM
 # We shift signal by 1 because we trade at the close based on today's state for tomorrow
@@ -158,16 +197,11 @@ X_test = test_data[['Returns', 'Range']].values
 
 # predict uses the existing model parameters to predict the next state
 test_states = model.predict(X_test)
-test_data['State'] = test_states
-print(f"Size of test data frame: {len(test_data['State'])}")
 
 # add to dataframe and calculate returns
 test_data = test_data.copy() # Avoid SettingWithCopyWarning
-print("Setting bull market signal...")
-positive_state_indices = np.where(model.means_[:, 0] > 0)[0]
-
-# signal = 1 if current_state in positive_state_indices else 0
-test_data['Signal'] = np.where(test_data['State'].isin(positive_state_indices), 1, 0)
+test_data['State'] = test_states
+test_data['Signal'] = np.where(test_data['State'] == bull_index, 1, 0)
 
 print("Plotting predicted regimes:")
 plt.figure(figsize=(12, 6))
@@ -213,57 +247,47 @@ else:
 # compare with actual results for a final test.
 # then apply model to the next day?
 
-print("\n|Phase 7: Rolling window|")
+print("|Phase 7: Rolling window|")
+print("Fetching new data up to today...")
 last_date = test_data.index[-1]
-print(f"Last date of test window: {last_date.strftime("%Y-%m-%d")}")
-print(f"Fetching data up to {datetime.today().strftime("%Y-%m-%d")}")
-new_data = yf.download(data_set, start=last_date, end=datetime.today().strftime('%Y-%m-%d'))
+new_data = yf.download(data_set, start=last_date, end=datetime.now().strftime('%Y-%m-%d'))
 
 # combine with a bit of old data so the first "new" prediction has a training window
 print("Creating new data series for rolling window...")
-# use most recent trading year from old data
-full_df = pd.concat([test_data.tail(252), new_data]) 
-print(f"Size of full data frame: {len(full_df)}")
-print(f"End date: {full_df.index[-1]}")
+full_df = pd.concat([test_data.tail(500), new_data]) 
 full_df['Returns'] = np.log(full_df['Close'] / full_df['Close'].shift(1))
 full_df['Range'] = (full_df['High'] - full_df['Low']) / full_df['Close']
-# full_df.dropna(inplace=True)
+full_df.dropna(inplace=True)
 
 # we'll do a 1-year rolling window
 # 252 trading days in a year
 window_size = 252 
 signals = []
-print(f"Size of new data: {len(new_data)}")
-print(f"End date: {new_data.index[-1]}")
-print(f"Size of total data frame: {len(full_df)}")
-print(f"End date: {full_df.index[-1]}")
+last_valid_signal = 0 
 
-for i in range(0, len(full_df)):
-    print(f"Training window: {i}")
-    train_window = full_df.iloc[i:window_size+i]
+for i in range(window_size, len(full_df)):
+    train_window = full_df.iloc[i-window_size:i]
     X_train = train_window[['Returns', 'Range']].values
     current_features = full_df.iloc[i:i+1][['Returns', 'Range']].values
     
     try:
         model.fit(X_train)
         
-        bull_indices = np.where(model.means_[:, 0] > 0)[0]
-        print(f"Bull indices: {bull_indices}")
-
+        bull_indeces = np.where(model.means_[:, 0] > 0)[0]
         current_state = model.predict(current_features)[0]
-        print(f"Next state predicted: {current_state}")
         
-        signal = 1 if current_state in bull_indices else 0
-        print(f"Next state is bull: {bool(signal)}")
+        signal = 1 if current_state in bull_indeces else 0
+
         signals.append(signal)
+        last_valid_signal = signal
+        
     except Exception as e:
         # if model fails to converge, use signal from previous day
-        # print(f"Exception caught on window {i}!")
-        signals.append(signals[-1] if signals else 0)
+        signals.append(last_valid_signal)
         continue
 
 # Add the signals to your dataframe
-new_results = full_df.copy()
+new_results = full_df.iloc[window_size:].copy()
 new_results['Signal'] = signals
 
 new_results['Strategy_Returns'] = new_results['Signal'].shift(1) * new_results['Returns']
@@ -273,29 +297,12 @@ new_results['Cumulative_Strategy'] = np.exp(new_results['Strategy_Returns'].cums
 market_final = new_results['Cumulative_Market'].iloc[-1]
 strategy_final = new_results['Cumulative_Strategy'].iloc[-1]
 
-plt.figure(figsize=(12, 6))
-plt.plot(new_results['Cumulative_Market'], label='Buy & Hold', color='black')
-plt.plot(new_results['Cumulative_Strategy'], label='HMM Strategy', color='green')
-plt.title(f'HMM Strategy vs Buy & Hold: New Results')
-plt.legend()
-plt.show()
-
-print(f"Classic Market Final Value on {new_results.index[-1]}:")
+print(f"CLassic Market Final Value on {new_data.index[-1]}:")
 print(f"  {market_final:.2%}")
 
 print(f"Rolling Strategy Final Value on {new_data.index[-1]}:")
 print(f"  {strategy_final:.2%}")
 
-print("Bull state(s):")
-for i in range(0, len(positive_return_regimes)):
-    print(f"  {positive_return_regimes[i]}")
+# TODO: plot new series of states and returns
 
-# TODO: return 10 most recent dates and states
-end_date_range = 10
-
-# make table
-# print("|--- Date ---|--- State ---|")
-# for i in range(0, end_date_range):
-#     # reverse index to go in order of dates, from -10 to -1
-#     index = 10 - i
-#     print(f"| {new_results.index[-index]} | {new_results['State'].iloc[-index]} |")
+# TODO: return 10 dates and states, note bull
