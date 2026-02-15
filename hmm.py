@@ -13,8 +13,8 @@ print("\n|Phase 1: Fetch data|")
 data_set = "SPY"
 # BTC-USD for regimes in crypto
 # Silver? Oil? Anything?
-start_date_spy = "2019-01-01"
-end_date_spy = "2023-01-01"
+start_date_spy = "2017-01-01"
+end_date_spy = "2024-01-01"
 start_date_btc = "2017-06-01"
 end_date_btc = "2022-06-01"
 data = yf.download(data_set, start=start_date_spy, end=end_date_spy)
@@ -51,8 +51,10 @@ n_iter = 100
 min_covar=1e-3
 # use Viterbi algorithm
 algorithm = "viterbi"
-# reinitialize parameters each time
-init_params = "stmc"
+# "" keeps set variables
+# "stmc" reinitializes parameters each time 
+# init_params = "stmc"
+init_params = ""
 
 print("Creating model...")
 
@@ -174,7 +176,7 @@ for i in range(model.n_components):
     plt.plot(test_data.index[state], test_data['Close'][state], '.', label=f'State {i}', color=colors[i], markersize=3)
 
 plt.legend()
-plt.title('Regimes Detected by HMM - Initial Testing')
+plt.title('Regimes Detected by HMM - Backesting')
 plt.show()
 
 # calculate returns (shift by 1 to avoid look-ahead bias)
@@ -244,9 +246,10 @@ print(f"End date: {full_df.index[-1].strftime("%Y-%m-%d")}")
 
 # plot market in new data to get an idea of how it has behaved in recent past
 # and also to catch breath before the rolling window
+print("Plotting market between training date and now:")
 plt.figure(figsize=(12, 6))
 plt.plot(full_df['Close'], label=data_set, color='black')
-plt.title(f'Market Outlook: New Results')
+plt.title(f'Market Outlook - Rolling Window')
 plt.legend()
 plt.show()
 
@@ -257,21 +260,25 @@ signals = []
 states = []
 
 print(f"Executing {window_size}-day rolling window from {last_date} to {most_recent_date}:")
+
 for i in range(window_size, len(full_df)):
     X_train = full_df.iloc[i-window_size:i][['Returns', 'Range']].values
     current_features = full_df.iloc[i:i+1][['Returns', 'Range']].values
     
     try:
+        print(f"Rolling window run: {i-window_size} i:({i})")
+
         model.fit(X_train)
         
+        print(f"Model {i-window_size} (i:{i}) fit to data.")
+
         bull_indices = np.where(model.means_[:, 0] > 0)[0]
 
-        print(f"Rolling window run: {i}")
         # print(f"Bull indices: {bull_indices}")
 
         current_state = model.predict(current_features)[0]
 
-        # print(f"Next state predicted: {current_state}")
+        print(f"Next state predicted: {current_state}")
         
         signal = 1 if current_state in bull_indices else 0
 
@@ -282,12 +289,17 @@ for i in range(window_size, len(full_df)):
     except Exception as e:
         # if model fails to converge, use signal from previous day
         print(f"Exception caught on window {i}! Exception: {e}")
+
         signals.append(signals[-1] if signals else 0)
         states.append(states[-1] if states else 0)
-        continue
 
-print("Rolling window complete.")
+        # continue
+        break
+
+print("\nRolling window complete.")
+print(f"Executed {i-window_size}/{len(full_df)-window_size-1} runs.")
 print("Compiling data...")
+
 # Add the signals to your dataframe
 full_results = full_df.copy()
 new_results = full_results[window_size:]
@@ -307,7 +319,7 @@ print("Plotting new data:")
 plt.figure(figsize=(12, 6))
 plt.plot(new_results['Cumulative_Market'], label='Buy & Hold', color='black')
 plt.plot(new_results['Cumulative_Strategy'], label='HMM Strategy', color='green')
-plt.title(f'HMM Strategy vs Buy & Hold: New Results')
+plt.title(f'HMM Strategy vs Buy & Hold - Rolling Window')
 plt.legend()
 plt.show()
 
@@ -315,7 +327,7 @@ print(f"\nFrom {last_date} to {most_recent_date}:")
 print(f"  Classic Market Final Value:")
 print(f"    {market_final:.2%}")
 
-print(f"  Rolling Strategy Final Value on {full_df.index[-1]}:")
+print(f"  Rolling Strategy Final Value:")
 print(f"    {strategy_final:.2%}")
 
 print("Bull state(s):")
@@ -327,6 +339,7 @@ end_date_range = 10
 
 # table of 10 most recent dates and states
 print("|--- Date ---|--- State ---|")
+
 for i in range(0, end_date_range):
     # reverse index to go in order of dates, from -10 to -1
     index = 10 - i
@@ -340,6 +353,7 @@ current_features = new_results.iloc[-2:-1][['Returns', 'Range']].values
 next_market_open_date = datetime.today().strftime("%Y-%m-%d")
 next_predicted_state = model.predict(current_features)[0]
 is_bullish = 1 if next_predicted_state in positive_return_regimes else 0
+
 print(f"Next date: {next_market_open_date}")
 print(f"Next state: {next_predicted_state}")
 print(f"Bullish: {bool(is_bullish)}")
