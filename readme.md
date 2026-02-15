@@ -37,13 +37,15 @@ The program is broken down into phases:
 1. Fetch data
 2. Build and train model
 3. Plot and show
-4. Analyze training results
-5. Test on new data
+4. Test against training data
+5. Analyze training results
+6. Test on new data
+7. Use rolling window to train up to present day
+8. Return recent states and predict tomorrow's state
 
 ### Market Regimes
 
-Depending on the number of regimes you search for, they could be broken down into multiple different categories.
-Here's what I've broken the regimes down into, based purely on what I saw on the plots.
+Some examples of regimes found by model:
 
 | n_components | Likely Regimes |
 | --- | --- |

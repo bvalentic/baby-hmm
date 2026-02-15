@@ -52,7 +52,7 @@ min_covar=1e-3
 # use Viterbi algorithm
 algorithm = "viterbi"
 # reinitialize parameters each time
-init_params = ""
+init_params = "stmc"
 
 print("Creating model...")
 
@@ -165,7 +165,6 @@ print("Positive return regime(s):")
 for i in range(0, len(positive_return_regimes)):
     print(f"  {positive_return_regimes[i]}")
 
-# signal = 1 if current_state in positive_state_indices else 0
 test_data['Signal'] = np.where(test_data['State'].isin(positive_return_regimes), 1, 0)
 
 print("Plotting predicted regimes:")
@@ -214,33 +213,50 @@ else:
 
 print("\n|Phase 7: Rolling window|")
 last_date = test_data.index[-1].strftime("%Y-%m-%d")
-
+most_recent_date = datetime.today().strftime("%Y-%m-%d")
 print(f"Last date of test window: {last_date}")
-print(f"Fetching data up to {datetime.today().strftime("%Y-%m-%d")}")
+print(f"Fetching data up to {most_recent_date}")
 
-# data = yf.download(data_set, start=start_date_spy, end=end_date_spy)
-new_data = yf.download(data_set, start=last_date, end=datetime.today().strftime('%Y-%m-%d'))
+new_data = yf.download(data_set, start=last_date, end=most_recent_date)
+
+# flatten MultiIndex columns if they exist
+# if isinstance(new_data.columns, pd.MultiIndex):
+#     new_data.columns = new_data.columns.get_level_values(0)
 
 # combine with a bit of old data so the first "new" prediction has a training window
 print("Creating new data series for rolling window...")
-# use most recent trading year from old data
-full_df = pd.concat([test_data.tail(252), new_data]) 
 
+# use most recent trading year from old data
+# drop the 'Returns' and 'Range' columns from the tail of test_data 
+# so they don't create NaN columns in the new_data section during concat
+# then concatenate and remove duplicates (the overlapping last_date)
+buffer_data = test_data.tail(252)[['Open', 'High', 'Low', 'Close', 'Volume']]
+full_df = pd.concat([buffer_data, new_data])
+full_df = full_df[~full_df.index.duplicated(keep='last')]
 print(f"Size of full data frame: {len(full_df)}")
-print(f"End date: {full_df.index[-1].strftime("%Y-%m-%d")}")
 
 full_df['Returns'] = np.log(full_df['Close'] / full_df['Close'].shift(1))
 full_df['Range'] = (full_df['High'] - full_df['Low']) / full_df['Close']
-# full_df.dropna(inplace=True)
+full_df.dropna(inplace=True)
+
+print(f"New data successfully merged. Total rows: {len(full_df)}")
+print(f"End date: {full_df.index[-1].strftime("%Y-%m-%d")}")
+
+# plot market in new data to get an idea of how it has behaved in recent past
+# and also to catch breath before the rolling window
+plt.figure(figsize=(12, 6))
+plt.plot(full_df['Close'], label=data_set, color='black')
+plt.title(f'Market Outlook: New Results')
+plt.legend()
+plt.show()
 
 # we'll do a 1-year rolling window
 # 252 trading days in a year
 window_size = 252 
 signals = []
+states = []
 
-print(f"Size of full data frame after dropna: {len(full_df)}")
-print(f"End date: {full_df.index[-1].strftime("%Y-%m-%d")}")
-
+print(f"Executing {window_size}-day rolling window from {last_date} to {most_recent_date}:")
 for i in range(window_size, len(full_df)):
     X_train = full_df.iloc[i-window_size:i][['Returns', 'Range']].values
     current_features = full_df.iloc[i:i+1][['Returns', 'Range']].values
@@ -251,28 +267,33 @@ for i in range(window_size, len(full_df)):
         bull_indices = np.where(model.means_[:, 0] > 0)[0]
 
         print(f"Rolling window run: {i}")
-        print(f"Bull indices: {bull_indices}")
+        # print(f"Bull indices: {bull_indices}")
 
         current_state = model.predict(current_features)[0]
 
-        print(f"Next state predicted: {current_state}")
+        # print(f"Next state predicted: {current_state}")
         
         signal = 1 if current_state in bull_indices else 0
 
-        print(f"Next state is bull: {bool(signal)}")
+        # print(f"Next state is bull: {bool(signal)}")
 
         signals.append(signal)
+        states.append(current_state)
     except Exception as e:
         # if model fails to converge, use signal from previous day
         print(f"Exception caught on window {i}! Exception: {e}")
         signals.append(signals[-1] if signals else 0)
+        states.append(states[-1] if states else 0)
         continue
 
+print("Rolling window complete.")
+print("Compiling data...")
 # Add the signals to your dataframe
-# full_results = full_df.copy()
-# new_results = full_results[window_size:]
-new_results = full_df.copy()
+full_results = full_df.copy()
+new_results = full_results[window_size:]
+# new_results = full_df.copy()
 new_results['Signal'] = signals
+new_results['State'] = states
 
 new_results['Strategy_Returns'] = new_results['Signal'].shift(1) * new_results['Returns']
 new_results['Cumulative_Market'] = np.exp(new_results['Returns'].cumsum())
@@ -281,6 +302,8 @@ new_results['Cumulative_Strategy'] = np.exp(new_results['Strategy_Returns'].cums
 market_final = new_results['Cumulative_Market'].iloc[-1]
 strategy_final = new_results['Cumulative_Strategy'].iloc[-1]
 
+print("Plotting new data:")
+
 plt.figure(figsize=(12, 6))
 plt.plot(new_results['Cumulative_Market'], label='Buy & Hold', color='black')
 plt.plot(new_results['Cumulative_Strategy'], label='HMM Strategy', color='green')
@@ -288,22 +311,35 @@ plt.title(f'HMM Strategy vs Buy & Hold: New Results')
 plt.legend()
 plt.show()
 
-print(f"Classic Market Final Value on {new_results.index[-1]}:")
-print(f"  {market_final:.2%}")
+print(f"\nFrom {last_date} to {most_recent_date}:")
+print(f"  Classic Market Final Value:")
+print(f"    {market_final:.2%}")
 
-print(f"Rolling Strategy Final Value on {full_df.index[-1]}:")
-print(f"  {strategy_final:.2%}")
+print(f"  Rolling Strategy Final Value on {full_df.index[-1]}:")
+print(f"    {strategy_final:.2%}")
 
 print("Bull state(s):")
 for i in range(0, len(positive_return_regimes)):
     print(f"  {positive_return_regimes[i]}")
 
-# TODO: return 10 most recent dates and states
+print("\n|Phase 8: Recent states and prediction|")
 end_date_range = 10
 
-# make table
-# print("|--- Date ---|--- State ---|")
-# for i in range(0, end_date_range):
-#     # reverse index to go in order of dates, from -10 to -1
-#     index = 10 - i
-#     print(f"| {new_results.index[-index]} | {new_results['State'].iloc[-index]} |")
+# table of 10 most recent dates and states
+print("|--- Date ---|--- State ---|")
+for i in range(0, end_date_range):
+    # reverse index to go in order of dates, from -10 to -1
+    index = 10 - i
+    print_date = new_results.index[-index].strftime("%Y-%m-%d")
+    print_state = new_results['State'].iloc[-index]
+    print(f"| {print_date} |      {print_state}      |") # formatting
+
+# predict next state
+current_features = new_results.iloc[-2:-1][['Returns', 'Range']].values
+
+next_market_open_date = datetime.today().strftime("%Y-%m-%d")
+next_predicted_state = model.predict(current_features)[0]
+is_bullish = 1 if next_predicted_state in positive_return_regimes else 0
+print(f"Next date: {next_market_open_date}")
+print(f"Next state: {next_predicted_state}")
+print(f"Bullish: {bool(is_bullish)}")
