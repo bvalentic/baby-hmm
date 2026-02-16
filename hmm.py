@@ -54,7 +54,7 @@ algorithm = "viterbi"
 # "" keeps set variables
 # "stmc" reinitializes parameters each time 
 # init_params = "stmc"
-init_params = ""
+init_params = "stmc"
 
 print("Creating model...")
 
@@ -246,7 +246,7 @@ print(f"End date: {full_df.index[-1].strftime("%Y-%m-%d")}")
 
 # plot market in new data to get an idea of how it has behaved in recent past
 # and also to catch breath before the rolling window
-print("Plotting market between training date and now:")
+print("Plotting market between training date and now:\n")
 plt.figure(figsize=(12, 6))
 plt.plot(full_df['Close'], label=data_set, color='black')
 plt.title(f'Market Outlook - Rolling Window')
@@ -266,11 +266,11 @@ for i in range(window_size, len(full_df)):
     current_features = full_df.iloc[i:i+1][['Returns', 'Range']].values
     
     try:
-        print(f"Rolling window run: {i-window_size} i:({i})")
+        # print(f"Rolling window run: {i-window_size} i:({i})")
 
         model.fit(X_train)
         
-        print(f"Model {i-window_size} (i:{i}) fit to data.")
+        # print(f"Model {i-window_size} (i:{i}) fit to data.")
 
         bull_indices = np.where(model.means_[:, 0] > 0)[0]
 
@@ -278,7 +278,7 @@ for i in range(window_size, len(full_df)):
 
         current_state = model.predict(current_features)[0]
 
-        print(f"Next state predicted: {current_state}")
+        # print(f"Next state predicted: {current_state}")
         
         signal = 1 if current_state in bull_indices else 0
 
@@ -293,8 +293,8 @@ for i in range(window_size, len(full_df)):
         signals.append(signals[-1] if signals else 0)
         states.append(states[-1] if states else 0)
 
-        # continue
-        break
+        continue
+        # break
 
 print("\nRolling window complete.")
 print(f"Executed {i-window_size}/{len(full_df)-window_size-1} runs.")
@@ -346,6 +346,7 @@ for i in range(0, end_date_range):
     print_date = new_results.index[-index].strftime("%Y-%m-%d")
     print_state = new_results['State'].iloc[-index]
     print(f"| {print_date} |      {print_state}      |") # formatting
+print("|------------|-------------|\n")
 
 # predict next state
 current_features = new_results.iloc[-2:-1][['Returns', 'Range']].values
