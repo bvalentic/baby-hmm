@@ -258,6 +258,7 @@ plt.show()
 window_size = 252 
 signals = []
 states = []
+exception_count = 0
 
 print(f"Executing {window_size}-day rolling window from {last_date} to {most_recent_date}:")
 
@@ -292,12 +293,14 @@ for i in range(window_size, len(full_df)):
 
         signals.append(signals[-1] if signals else 0)
         states.append(states[-1] if states else 0)
+        exception_count += 1
 
         continue
         # break
 
 print("\nRolling window complete.")
 print(f"Executed {i-window_size}/{len(full_df)-window_size-1} runs.")
+print(f"Exception count: {exception_count}\n")
 print("Compiling data...")
 
 # Add the signals to your dataframe
@@ -338,7 +341,7 @@ print("\n|Phase 8: Recent states and prediction|")
 end_date_range = 10
 
 # table of 10 most recent dates and states
-print("|--- Date ---|--- State ---|")
+print("\n|--- Date ---|--- State ---|")
 
 for i in range(0, end_date_range):
     # reverse index to go in order of dates, from -10 to -1
