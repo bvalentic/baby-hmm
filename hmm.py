@@ -11,6 +11,7 @@ print("\n|Phase 1: Fetch data|")
 
 # use SPY (S&P 500 ETF) for a good mix of regimes
 data_set = "SPY"
+print(f"Market: {data_set}")
 # BTC-USD for regimes in crypto
 # Silver? Oil? Anything?
 start_date_spy = "2017-01-01"
@@ -53,7 +54,6 @@ min_covar=1e-3
 algorithm = "viterbi"
 # "" keeps set variables
 # "stmc" reinitializes parameters each time 
-# init_params = "stmc"
 init_params = "stmc"
 
 print("Creating model...")
@@ -78,7 +78,6 @@ print("Initial model training complete.")
 
 # define colors for up to 4 states
 colors = ['green', 'red', 'blue', 'orange']
-potential_model_states = ["bull", "bear", "crash", "spike"]
 
 print("Means and variances of each state:")
 for i in range(model.n_components):
@@ -99,7 +98,14 @@ plt.figure(figsize=(15, 6))
 
 for i in range(model.n_components):
     state = (hidden_states == i)
-    plt.plot(train_data.index[state], train_data['Close'][state], '.', label=f'State {i}', color=colors[i], markersize=3)
+    plt.plot(
+        train_data.index[state], 
+        train_data['Close'][state], 
+        '.', 
+        label=f'State {i}', 
+        color=colors[i], 
+        markersize=3
+        )
 
 plt.legend()
 plt.title('Regimes Detected by HMM - Training')
@@ -303,10 +309,12 @@ print(f"Executed {i-window_size}/{len(full_df)-window_size-1} runs.")
 print(f"Exception count: {exception_count}\n")
 print("Compiling data...")
 
+# set new bullish states in case they've changed
+positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
+
 # Add the signals to your dataframe
 full_results = full_df.copy()
 new_results = full_results[window_size:]
-# new_results = full_df.copy()
 new_results['Signal'] = signals
 new_results['State'] = states
 
@@ -351,13 +359,24 @@ for i in range(0, end_date_range):
     print(f"| {print_date} |      {print_state}      |") # formatting
 print("|------------|-------------|\n")
 
-# predict next state
-current_features = new_results.iloc[-2:-1][['Returns', 'Range']].values
+# get the state for today
+# use iloc[-1:] to get the latest data point
+today_features = new_results.iloc[-1:][['Returns', 'Range']].values
+today_state = model.predict(today_features)[0]
 
-next_market_open_date = datetime.today().strftime("%Y-%m-%d")
-next_predicted_state = model.predict(current_features)[0]
+# access the transition matrix
+# a matrix of [Current State, Next State] probabilities
+# shape is (n_components, n_components)
+transition_matrix = model.transmat_
+
+# find the most likely next state
+probs_for_tomorrow = transition_matrix[today_state]
+next_predicted_state = np.argmax(probs_for_tomorrow)
+
+# check if future state is bullish
 is_bullish = 1 if next_predicted_state in positive_return_regimes else 0
 
-print(f"Next date: {next_market_open_date}")
-print(f"Next state: {next_predicted_state}")
-print(f"Bullish: {bool(is_bullish)}")
+print(f"Today's State: {today_state}")
+print(f"Probabilities for Tomorrow: {probs_for_tomorrow}")
+print(f"Predicted State for Tomorrow: {next_predicted_state}")
+print(f"Action for Tomorrow: {'🚀 GO LONG' if is_bullish else '💰 STAY IN CASH'}")
