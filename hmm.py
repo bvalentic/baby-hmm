@@ -39,6 +39,8 @@ train_data.dropna(inplace=True)
 
 # hmmlearn expects a 2D array of shape (n_samples, n_features)
 X = train_data[['Returns', 'Range']].values
+# try OHLC data
+# X = train_data[['Open', 'High', 'Low', 'Close']].values
 
 print(f"Data shape: {X.shape}")
 
