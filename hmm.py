@@ -15,13 +15,19 @@ data_set = "SPY"
 # data_set = "BTC-USD"
 # Silver? Oil? Anything?
 print(f"Market: {data_set}")
+
+# pick a good start date?
 start_date = "2021-01-01"
 end_date = "2025-01-01"
 # start_date_spy = "2021-01-01"
 # end_date_spy = "2025-01-01"
 # start_date_btc = "2017-06-01"
 # end_date_btc = "2022-06-01"
-data = yf.download(data_set, start=start_date, end=end_date)
+
+# interval of less than 1d if start - end < 60 days
+interval = "1d"
+
+data = yf.download(data_set, start=start_date, end=end_date, interval=interval)
 
 # separate dataset into training and testing data
 train_size = int(len(data) * 0.70)
@@ -37,10 +43,18 @@ train_data['Returns'] = np.log(train_data['Close'] / train_data['Close'].shift(1
 train_data['Range'] = (train_data['High'] - train_data['Low']) / train_data['Close']
 train_data.dropna(inplace=True)
 
+# need to normalize OHLC data before attempting to train on it
+train_data['Open_Normal'] = np.log(train_data['Open'] / train_data['Open'].shift(1))
+train_data['High_Normal'] = np.log(train_data['High'] / train_data['High'].shift(1))
+train_data['Low_Normal'] = np.log(train_data['Low'] / train_data['Low'].shift(1))
+train_data['Close_Normal'] = np.log(train_data['Close'] / train_data['Close'].shift(1))
+train_data.dropna(inplace=True)
+
 # hmmlearn expects a 2D array of shape (n_samples, n_features)
 X = train_data[['Returns', 'Range']].values
-# try OHLC data
-# X = train_data[['Open', 'High', 'Low', 'Close']].values
+
+# try the OHLC now
+# X = train_data[['Open_Normal', 'High_Normal', 'Low_Normal', 'Close_Normal']].values
 
 print(f"Data shape: {X.shape}")
 
