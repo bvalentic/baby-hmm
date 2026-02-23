@@ -51,10 +51,13 @@ train_data['Close_Normal'] = np.log(train_data['Close'] / train_data['Close'].sh
 train_data.dropna(inplace=True)
 
 # hmmlearn expects a 2D array of shape (n_samples, n_features)
-X = train_data[['Returns', 'Range']].values
+# X = train_data[['Returns', 'Range']].values
 
 # try the OHLC now
-X = train_data[['Open_Normal', 'High_Normal', 'Low_Normal', 'Close_Normal']].values
+# X = train_data[['Open_Normal', 'High_Normal', 'Low_Normal', 'Close_Normal']].values
+
+# why not both?
+X = train_data[['Returns', 'Range', 'Open_Normal', 'High_Normal', 'Low_Normal', 'Close_Normal']].values
 
 print(f"Data shape: {X.shape}")
 
@@ -105,12 +108,13 @@ colors = ['green', 'red', 'blue', 'orange', "purple", "brown"]
 #     print(f"  Mean Volatility: {model.means_[i][1]:.5f}")
 
 four_state_shape = ['Open', 'High', 'Low', 'Close']
+six_state_shape = ['Returns', 'Range', 'Open', 'High', 'Low', 'Close']
 
 print("Means and variances of each state (OHLC):")
 for i in range(model.n_components):
     print(f"State {i}:")
     for j in range(X.shape[1]):
-        print(f"  Mean {four_state_shape[j]}: {model.means_[i][j]:.5f}")
+        print(f"  Mean {six_state_shape[j]}: {model.means_[i][j]:.5f}")
 
 positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
 
@@ -197,8 +201,16 @@ print("\n|Phase 6: Initial test on new data|")
 # prepare the test features (must be the same columns as training)
 test_data['Returns'] = np.log(test_data['Close'] / test_data['Close'].shift(1))
 test_data['Range'] = (test_data['High'] - test_data['Low']) / test_data['Close']
+# test_data.dropna(inplace=True)
+# X_test = test_data[['Returns', 'Range']].values
+
+# need to normalize OHLC data before attempting to train on it
+test_data['Open_Normal'] = np.log(test_data['Open'] / test_data['Open'].shift(1))
+test_data['High_Normal'] = np.log(test_data['High'] / test_data['High'].shift(1))
+test_data['Low_Normal'] = np.log(test_data['Low'] / test_data['Low'].shift(1))
+test_data['Close_Normal'] = np.log(test_data['Close'] / test_data['Close'].shift(1))
 test_data.dropna(inplace=True)
-X_test = test_data[['Returns', 'Range']].values
+X_test = test_data[['Returns', 'Range', 'Open_Normal', 'High_Normal', 'Low_Normal', 'Close_Normal']].values
 
 # predict uses the existing model parameters to predict the next state
 test_states = model.predict(X_test)
@@ -297,6 +309,12 @@ print(f"Size of full data frame: {len(full_df)}")
 
 full_df['Returns'] = np.log(full_df['Close'] / full_df['Close'].shift(1))
 full_df['Range'] = (full_df['High'] - full_df['Low']) / full_df['Close']
+# full_df.dropna(inplace=True)
+
+full_df['Open_Normal'] = np.log(full_df['Open'] / full_df['Open'].shift(1))
+full_df['High_Normal'] = np.log(full_df['High'] / full_df['High'].shift(1))
+full_df['Low_Normal'] = np.log(full_df['Low'] / full_df['Low'].shift(1))
+full_df['Close_Normal'] = np.log(full_df['Close'] / full_df['Close'].shift(1))
 full_df.dropna(inplace=True)
 
 print(f"New data successfully merged. Total rows: {len(full_df)}")
@@ -321,14 +339,21 @@ exception_list = []
 print(f"Executing {window_size}-day rolling window from {last_date} to {most_recent_date}:")
 
 for i in range(window_size, len(full_df)):
-    X_train = full_df.iloc[i-window_size:i][['Returns', 'Range']].values
-    current_features = full_df.iloc[i:i+1][['Returns', 'Range']].values
+    X_train = full_df.iloc[i-window_size:i][['Returns', 'Range', 'Open_Normal', 'High_Normal', 'Low_Normal', 'Close_Normal']].values
+    current_features = full_df.iloc[i:i+1][['Returns', 'Range', 'Open_Normal', 'High_Normal', 'Low_Normal', 'Close_Normal']].values
     
     try:
         model.fit(X_train)
-        bull_indices = np.where(model.means_[:, 0] > 0)[0]
         current_state = model.predict(current_features)[0]
-        signal = 1 if current_state in bull_indices else 0
+
+        positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
+        low_volatility_regimes = np.where(model.means_[:, 1] < volatility_threshold)[0]
+        bull_regimes = []
+        for i in positive_return_regimes:
+            if i in low_volatility_regimes:
+                bull_regimes.append(i)
+
+        signal = 1 if current_state in bull_regimes else 0
 
         signals.append(signal)
         states.append(current_state)
@@ -393,10 +418,16 @@ print("\n|Phase 8: Recent states and prediction|")
 end_date_range = 10
 
 # print states and means
+# for i in range(model.n_components):
+#     print(f"State {i}:")
+#     print(f"  Mean Returns: {model.means_[i][0]:.5f}")
+#     print(f"  Mean Volatility: {model.means_[i][1]:.5f}")
+
+print("Means and variances of each state (OHLC):")
 for i in range(model.n_components):
     print(f"State {i}:")
-    print(f"  Mean Returns: {model.means_[i][0]:.5f}")
-    print(f"  Mean Volatility: {model.means_[i][1]:.5f}")
+    for j in range(X.shape[1]):
+        print(f"  Mean {six_state_shape[j]}: {model.means_[i][j]:.5f}")
 
 # table of 10 most recent dates and states
 print("\n|--- Date ---|--- State ---|")
@@ -412,7 +443,7 @@ print(f" {data_set}\n")
 
 # get the state for today
 # use iloc[-1:] to get the latest data point
-today_features = new_results.iloc[-1:][['Returns', 'Range']].values
+today_features = new_results.iloc[-1:][['Returns', 'Range', 'Open_Normal', 'High_Normal', 'Low_Normal', 'Close_Normal']].values
 today_state = model.predict(today_features)[0]
 
 # access the transition matrix
