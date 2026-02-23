@@ -54,7 +54,7 @@ train_data.dropna(inplace=True)
 X = train_data[['Returns', 'Range']].values
 
 # try the OHLC now
-# X = train_data[['Open_Normal', 'High_Normal', 'Low_Normal', 'Close_Normal']].values
+X = train_data[['Open_Normal', 'High_Normal', 'Low_Normal', 'Close_Normal']].values
 
 print(f"Data shape: {X.shape}")
 
@@ -98,11 +98,19 @@ print("Initial model training complete.")
 # define colors for up to 6 states
 colors = ['green', 'red', 'blue', 'orange', "purple", "brown"]
 
-print("Means and variances of each state:")
+# print("Means and variances of each state (Returns & Volatility):")
+# for i in range(model.n_components):
+#     print(f"State {i}:")
+#     print(f"  Mean Returns: {model.means_[i][0]:.5f}")
+#     print(f"  Mean Volatility: {model.means_[i][1]:.5f}")
+
+four_state_shape = ['Open', 'High', 'Low', 'Close']
+
+print("Means and variances of each state (OHLC):")
 for i in range(model.n_components):
     print(f"State {i}:")
-    print(f"  Mean Returns: {model.means_[i][0]:.5f}")
-    print(f"  Mean Volatility: {model.means_[i][1]:.5f}")
+    for j in range(X.shape[1]):
+        print(f"  Mean {four_state_shape[j]}: {model.means_[i][j]:.5f}")
 
 positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
 
