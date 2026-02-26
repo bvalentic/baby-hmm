@@ -137,7 +137,7 @@ print("\n|Phase 3: Plot and verify|")
 # plot price, colored by state
 plt.figure(figsize=(15, 6))
 
-# plot line chart of market close (for now), shifted down
+# plot line chart of market close (for now), offset by 1
 plt.plot(train_data['Close'] - 1, '-', label=f"{data_set}", color='grey', markersize=1)
 
 # plot each state's closing price
