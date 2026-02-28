@@ -1,4 +1,5 @@
 ## An HMM-based algorithmic trading system in Python
+import functions
 
 import numpy as np
 import pandas as pd
@@ -33,11 +34,8 @@ test_data = data[train_size:]
 test_start = test_data['Close'].iloc[0]
 test_end = test_data['Close'].iloc[-1]
 
-# we need features that define the "state" of the market
-# common choices are returns and volatility
-train_data['Returns'] = np.log(train_data['Close'] / train_data['Close'].shift(1))
-train_data['Range'] = (train_data['High'] - train_data['Low']) / train_data['Close']
-train_data.dropna(inplace=True)
+# using returns and volatility:
+train_data['Returns'], train_data['Range'] = functions.get_two_state_data(train_data)
 
 # need to normalize OHLC data before attempting to train on it
 train_data['Open_Normal'] = np.log(train_data['Open'] / train_data['Open'].shift(1))
@@ -47,7 +45,7 @@ train_data['Close_Normal'] = np.log(train_data['Close'] / train_data['Close'].sh
 train_data.dropna(inplace=True)
 
 # hmmlearn expects a 2D array of shape (n_samples, n_features)
-X = train_data[['Returns', 'Range']].values
+X = functions.normalize_two_state_data(train_data)
 
 # try the OHLC now
 # X = train_data[['Open_Normal', 'High_Normal', 'Low_Normal', 'Close_Normal']].values
@@ -55,7 +53,6 @@ X = train_data[['Returns', 'Range']].values
 # why not both?
 # X = train_data[['Returns', 'Range', 'Open_Normal', 'High_Normal', 'Low_Normal', 'Close_Normal']].values
 
-print(f"Data shape: {X.shape}")
 
 print("\n|Phase 2: Build & train model|")
 
@@ -137,8 +134,8 @@ print("\n|Phase 3: Plot and verify|")
 # plot price, colored by state
 plt.figure(figsize=(15, 6))
 
-# plot line chart of market close (for now), offset by 1
-plt.plot(train_data['Close'] - 1, '-', label=f"{data_set}", color='grey', markersize=1)
+# plot line chart of market close (for now)
+plt.plot(train_data['Close'], '-', label=f"{data_set}", color='grey', markersize=1)
 
 # plot each state's closing price
 for i in range(model.n_components):
@@ -162,6 +159,12 @@ train_bull_state_list = []
 print("Setting bull market signal...")
 train_data['Signal'] = np.where(train_data['State'].isin(bull_regimes), 1, 0)
 
+# TODO: figure out a better way to set signal
+# simulate my eventual strategy
+# begin at start_date with initial funds
+# buy X amount (1 share?) if bullish
+# sell Y amount (some percentage - 25%?) if bearish
+# add to funding pool every week
 
 # calculate returns on HMM
 # We shift signal by 1 because we trade at the close based on today's state for tomorrow
@@ -370,10 +373,9 @@ for i in range(window_size, len(full_df)):
         exception_list.append(i)
 
         continue
-        # break
 
 print("\nRolling window complete.")
-print(f"Executed {len(full_df)-window_size}/{len(full_df)-window_size-1} runs.")
+print(f"Executed {run_count}/{len(full_df)-window_size} runs.")
 print(f"Exceptions: {exception_list}\n")
 print("Compiling data...")
 
