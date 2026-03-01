@@ -14,7 +14,6 @@ print("\n|Phase 1: Fetch data|")
 # use SPY (S&P 500 ETF) for a good mix of regimes
 data_set = "SPY"
 # BTC-USD for regimes in crypto
-# data_set = "BTC-USD"
 # Silver? Oil? Anything?
 print(f"Market: {data_set}")
 
@@ -39,14 +38,10 @@ test_end = test_data['Close'].iloc[-1]
 train_data['Returns'], train_data['Range'] = functions.get_two_state_data(train_data)
 
 # need to normalize OHLC data before attempting to train on it
-train_data['Open_Normal'] = np.log(train_data['Open'] / train_data['Open'].shift(1))
-train_data['High_Normal'] = np.log(train_data['High'] / train_data['High'].shift(1))
-train_data['Low_Normal'] = np.log(train_data['Low'] / train_data['Low'].shift(1))
-train_data['Close_Normal'] = np.log(train_data['Close'] / train_data['Close'].shift(1))
-train_data.dropna(inplace=True)
+train_data['Open_Normal'], train_data['High_Normal'], train_data['Low_Normal'], train_data['Close_Normal'] = functions.get_four_state_data(train_data)
 
 # hmmlearn expects a 2D array of shape (n_samples, n_features)
-X = functions.normalize_two_state_data(train_data)
+X = functions.get_two_state_values(train_data)
 
 print("\n|Phase 2: Build & train model|")
 
@@ -185,7 +180,8 @@ print("\n|Phase 6: Initial test on new data|")
 
 # prepare the test features (must be the same columns as training)
 test_data['Returns'], test_data['Range'] = functions.get_two_state_data(test_data)
-X_test = functions.normalize_two_state_data(test_data)
+
+X_test = functions.get_two_state_values(test_data)
 
 # predict uses the existing model parameters to predict the next state
 test_states = model.predict(X_test)
@@ -283,11 +279,7 @@ print(f"Size of full data frame: {len(full_df)}")
 
 full_df['Returns'], full_df['Range'] = functions.get_two_state_data(full_df)
 
-full_df['Open_Normal'] = np.log(full_df['Open'] / full_df['Open'].shift(1))
-full_df['High_Normal'] = np.log(full_df['High'] / full_df['High'].shift(1))
-full_df['Low_Normal'] = np.log(full_df['Low'] / full_df['Low'].shift(1))
-full_df['Close_Normal'] = np.log(full_df['Close'] / full_df['Close'].shift(1))
-full_df.dropna(inplace=True)
+full_df['Open_Normal'], full_df['High_Normal'], full_df['Low_Normal'], full_df['Close_Normal'] = functions.get_four_state_data(full_df)
 
 print(f"New data successfully merged. Total rows: {len(full_df)}")
 print(f"End date: {full_df.index[-1].strftime("%Y-%m-%d")}")
