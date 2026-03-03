@@ -43,3 +43,9 @@ def algorithm(data_frame):
         portfolio_history.append(total_value)
     
     return portfolio_history
+
+# the old "HMM Strategy"
+def buy_and_hold_strategy(data_frame):
+    # We shift signal by 1 because we trade at the close based on today's state for tomorrow
+    data_frame['Strategy_Returns'] = data_frame['Signal'].shift(1) * data_frame['Returns']
+    return data_frame['Strategy_Returns']

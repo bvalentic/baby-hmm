@@ -161,8 +161,7 @@ print("Setting bull market signal...")
 train_data['Signal'] = np.where(train_data['State'].isin(bull_regimes), 1, 0)
 
 # calculate returns on HMM
-# We shift signal by 1 because we trade at the close based on today's state for tomorrow
-train_data['Strategy_Returns'] = train_data['Signal'].shift(1) * train_data['Returns']
+train_data['Strategy_Returns'] = algo.buy_and_hold_strategy(train_data)
 
 # calculate buy & hold returns
 train_data['Cumulative_Market'] = np.exp(train_data['Returns'].cumsum())
@@ -179,11 +178,7 @@ plt.show()
 
 # Run the algorithm
 print("Running new algorithm...")
-algorithm_portfolio = algo.algorithm(train_data)
-
-
-train_data['Algorithm_Portfolio'] = algorithm_portfolio
-train_data['Algorithm_Portfolio'] = pd.to_numeric(train_data['Algorithm_Portfolio'])
+train_data['Algorithm_Portfolio'] = algo.algorithm(train_data)
 
 # Plot using the index explicitly for X-axis stability
 plt.figure(figsize=(12, 6))
