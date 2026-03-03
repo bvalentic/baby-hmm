@@ -1,5 +1,6 @@
 ## An HMM-based algorithmic trading system in Python
 import functions
+import baby_algo as algo
 
 import numpy as np
 import pandas as pd
@@ -28,8 +29,8 @@ data = yf.download(data_set, start=start_date, end=end_date, interval=interval)
 
 # separate dataset into training and testing data
 train_size = int(len(data) * 0.70)
-train_data = data[:train_size]
-test_data = data[train_size:]
+train_data = data[:train_size].copy()
+test_data = data[train_size:].copy()
 # get the initial start and end dates of testing
 test_start = test_data['Close'].iloc[0]
 test_end = test_data['Close'].iloc[-1]
@@ -159,13 +160,6 @@ train_bull_state_list = []
 print("Setting bull market signal...")
 train_data['Signal'] = np.where(train_data['State'].isin(bull_regimes), 1, 0)
 
-# TODO: figure out a better way to set signal
-# simulate my eventual strategy
-# begin at start_date with initial funds
-# buy X amount (1 share?) if bullish
-# sell Y amount (some percentage - 25%?) if bearish
-# add to funding pool every week
-
 # calculate returns on HMM
 # We shift signal by 1 because we trade at the close based on today's state for tomorrow
 train_data['Strategy_Returns'] = train_data['Signal'].shift(1) * train_data['Returns']
@@ -180,6 +174,22 @@ plt.figure(figsize=(12, 6))
 plt.plot(train_data['Cumulative_Market'], label='Buy & Hold', color='gray')
 plt.plot(train_data['Cumulative_Strategy'], label='HMM Strategy', color='orange')
 plt.title(f'{data_set}: HMM Strategy vs Buy & Hold - Training')
+plt.legend()
+plt.show()
+
+# Run the algorithm
+print("Running new algorithm...")
+algorithm_portfolio = algo.algorithm(train_data)
+
+
+train_data['Algorithm_Portfolio'] = algorithm_portfolio
+train_data['Algorithm_Portfolio'] = pd.to_numeric(train_data['Algorithm_Portfolio'])
+
+# Plot using the index explicitly for X-axis stability
+plt.figure(figsize=(12, 6))
+plt.plot(train_data.index, train_data['Algorithm_Portfolio'], 
+         label='Total Portfolio Balance', color='green')
+plt.title(f'{data_set}: Portfolio on HMM - Training')
 plt.legend()
 plt.show()
 
