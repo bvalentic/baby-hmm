@@ -142,6 +142,15 @@ train_data['Signal'] = np.where(train_data['State'].isin(bull_regimes), 1, 0)
 
 # calculate returns on HMM
 train_data['Strategy_Returns'] = algo.buy_and_hold_strategy(train_data)
+train_data['Algorithm_Portfolio'] = algo.basic_algo(train_data)
+
+# Plot using the index explicitly for X-axis stability
+plt.figure(figsize=(12, 6))
+plt.plot(train_data.index, train_data['Algorithm_Portfolio'], 
+         label='Total Portfolio Balance', color='green')
+plt.title(f'{data_set}: Portfolio on HMM - Training')
+plt.legend()
+plt.show()
 
 # calculate buy & hold returns
 train_data['Cumulative_Market'] = np.exp(train_data['Returns'].cumsum())
@@ -153,18 +162,6 @@ plt.figure(figsize=(12, 6))
 plt.plot(train_data['Cumulative_Market'], label=data_set, color='gray')
 plt.plot(train_data['Cumulative_Strategy'], label='Buy & Hold w/HMM', color='orange')
 plt.title(f'{data_set}: HMM Strategy vs Market - Training')
-plt.legend()
-plt.show()
-
-# Run the algorithm
-print("Running new algorithm...")
-train_data['Algorithm_Portfolio'] = algo.basic_algo(train_data)
-
-# Plot using the index explicitly for X-axis stability
-plt.figure(figsize=(12, 6))
-plt.plot(train_data.index, train_data['Algorithm_Portfolio'], 
-         label='Total Portfolio Balance', color='green')
-plt.title(f'{data_set}: Portfolio on HMM - Training')
 plt.legend()
 plt.show()
 
@@ -357,13 +354,23 @@ for i in positive_return_regimes:
     if i in low_volatility_regimes:
         bull_regimes.append(i)
 
-# Add the signals to your dataframe
+# add the signals to dataframe
 full_results = full_df.copy()
 new_results = full_results[window_size:]
 new_results['Signal'] = signals
 new_results['State'] = states
 
 new_results['Strategy_Returns'] = algo.buy_and_hold_strategy(new_results)
+new_results['Algorithm_Portfolio'] = algo.basic_algo(new_results)
+
+# Plot using the index explicitly for X-axis stability
+plt.figure(figsize=(12, 6))
+plt.plot(new_results.index, new_results['Algorithm_Portfolio'], 
+         label='Total Portfolio Balance', color='green')
+plt.title(f'{data_set}: Portfolio on HMM - Training')
+plt.legend()
+plt.show()
+
 new_results['Cumulative_Market'] = np.exp(new_results['Returns'].cumsum())
 new_results['Cumulative_Strategy'] = np.exp(new_results['Strategy_Returns'].cumsum())
 
@@ -371,7 +378,6 @@ market_final = new_results['Cumulative_Market'].iloc[-1]
 strategy_final = new_results['Cumulative_Strategy'].iloc[-1]
 
 print("Plotting new data:")
-
 plt.figure(figsize=(12, 6))
 plt.plot(new_results['Cumulative_Market'], label='Buy & Hold', color='black')
 plt.plot(new_results['Cumulative_Strategy'], label='HMM Strategy', color='green')
