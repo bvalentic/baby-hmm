@@ -392,7 +392,7 @@ print("\n|Phase 8: Recent states and prediction|")
 
 # get the state for today
 # use iloc[-1:] to get the latest data point
-today_features = functions.normalize_two_state_data(new_results)
+today_features = functions.get_two_state_values(new_results)
 today_state = model.predict(today_features)[0]
 
 # access the transition matrix
