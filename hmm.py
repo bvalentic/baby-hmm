@@ -48,13 +48,6 @@ train_data.dropna(inplace=True)
 # hmmlearn expects a 2D array of shape (n_samples, n_features)
 X = functions.normalize_two_state_data(train_data)
 
-# try the OHLC now
-# X = train_data[['Open_Normal', 'High_Normal', 'Low_Normal', 'Close_Normal']].values
-
-# why not both?
-# X = train_data[['Returns', 'Range', 'Open_Normal', 'High_Normal', 'Low_Normal', 'Close_Normal']].values
-
-
 print("\n|Phase 2: Build & train model|")
 
 # number of market regimes
@@ -95,27 +88,12 @@ print("Initial model training complete.")
 # define colors for up to 6 states
 colors = ['green', 'red', 'blue', 'orange', "purple", "brown"]
 
+# list out names of parameters for easier printing
 two_state_shape = ['Returns', 'Volatility']
 four_state_shape = ['Open', 'High', 'Low', 'Close']
 six_state_shape = ['Returns', 'Range', 'Open', 'High', 'Low', 'Close']
 
-print("Means and variances of each state (Returns & Volatility):")
-for i in range(model.n_components):
-    print(f"State {i}:")
-    for j in range(X.shape[1]):
-        print(f"  Mean {j}: {model.means_[i][j]:.5f}")
-
-# print("Means and variances of each state (OHLC):")
-# for i in range(model.n_components):
-#     print(f"State {i}:")
-#     for j in range(X.shape[1]):
-#         print(f"  Mean {six_state_shape[j]}: {model.means_[i][j]:.5f}")
-
 positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
-
-print("Positive return regime(s):")
-for i in range(0, len(positive_return_regimes)):
-    print(f"  {positive_return_regimes[i]}")
 
 # try adding volatility check
 volatility_threshold = 0.070
@@ -126,9 +104,12 @@ for i in positive_return_regimes:
     if i in low_volatility_regimes:
         bull_regimes.append(i)
 
-print("Bull regime(s):")
-for i in range(0, len(bull_regimes)):
-    print(f"  {bull_regimes[i]}")
+
+print("Means and variances of each state (Returns & Volatility):")
+for i in range(model.n_components):
+    print(f"State {i}{" (Bullish)" if i in bull_regimes else ""}:")
+    for j in range(X.shape[1]):
+        print(f"  Mean {two_state_shape[j]}: {model.means_[i][j]:.5f}")
 
 print("\n|Phase 3: Plot and verify|")
 
@@ -156,7 +137,6 @@ plt.show()
 print("\n|Phase 4: Test against training data|")
 train_bull_state_list = []
 # create a signal: 1 if in bullish state, 0 otherwise
-# for now, grabbing any state with positive mean returns (not factoring in volatility)
 print("Setting bull market signal...")
 train_data['Signal'] = np.where(train_data['State'].isin(bull_regimes), 1, 0)
 
@@ -170,15 +150,15 @@ train_data['Cumulative_Strategy'] = np.exp(train_data['Strategy_Returns'].cumsum
 # plot training performance
 print("Plotting training performance:")
 plt.figure(figsize=(12, 6))
-plt.plot(train_data['Cumulative_Market'], label='Buy & Hold', color='gray')
-plt.plot(train_data['Cumulative_Strategy'], label='HMM Strategy', color='orange')
-plt.title(f'{data_set}: HMM Strategy vs Buy & Hold - Training')
+plt.plot(train_data['Cumulative_Market'], label=data_set, color='gray')
+plt.plot(train_data['Cumulative_Strategy'], label='Buy & Hold w/HMM', color='orange')
+plt.title(f'{data_set}: HMM Strategy vs Market - Training')
 plt.legend()
 plt.show()
 
 # Run the algorithm
 print("Running new algorithm...")
-train_data['Algorithm_Portfolio'] = algo.algorithm(train_data)
+train_data['Algorithm_Portfolio'] = algo.basic_algo(train_data)
 
 # Plot using the index explicitly for X-axis stability
 plt.figure(figsize=(12, 6))
@@ -207,18 +187,8 @@ else:
 print("\n|Phase 6: Initial test on new data|")
 
 # prepare the test features (must be the same columns as training)
-test_data['Returns'] = np.log(test_data['Close'] / test_data['Close'].shift(1))
-test_data['Range'] = (test_data['High'] - test_data['Low']) / test_data['Close']
-test_data.dropna(inplace=True)
-X_test = test_data[['Returns', 'Range']].values
-
-# need to normalize OHLC data before attempting to train on it
-# test_data['Open_Normal'] = np.log(test_data['Open'] / test_data['Open'].shift(1))
-# test_data['High_Normal'] = np.log(test_data['High'] / test_data['High'].shift(1))
-# test_data['Low_Normal'] = np.log(test_data['Low'] / test_data['Low'].shift(1))
-# test_data['Close_Normal'] = np.log(test_data['Close'] / test_data['Close'].shift(1))
-# test_data.dropna(inplace=True)
-# X_test = test_data[['Returns', 'Range', 'Open_Normal', 'High_Normal', 'Low_Normal', 'Close_Normal']].values
+test_data['Returns'], test_data['Range'] = functions.get_two_state_data(test_data)
+X_test = functions.normalize_two_state_data(test_data)
 
 # predict uses the existing model parameters to predict the next state
 test_states = model.predict(X_test)
@@ -252,13 +222,12 @@ for i in range(model.n_components):
         label=f'State {i}', 
         color=colors[i], 
         markersize=3)
-
 plt.legend()
 plt.title(f'{data_set}: Regimes Detected by HMM - Backesting')
 plt.show()
 
-# calculate returns (shift by 1 to avoid look-ahead bias)
-test_data['Strategy_Returns'] = test_data['Signal'].shift(1) * test_data['Returns']
+# calculate returns
+test_data['Strategy_Returns'] = algo.buy_and_hold_strategy(test_data)
 
 # calculate cumulative growth
 test_data['Cumulative_Market'] = np.exp(test_data['Returns'].cumsum())
@@ -285,7 +254,7 @@ if strategy_final_test > market_final_test:
 else:
     print("\n❌ The HMM underperformed. It might need different features or state counts.")
 
-# next phase - rolling window and walk-forward?
+# next phase - rolling window and walk-forward
 # roll up to present day; 
 # guess latest regime for most recent market close; 
 # compare with actual results for a final test.
@@ -315,9 +284,7 @@ full_df = pd.concat([buffer_data, new_data])
 full_df = full_df[~full_df.index.duplicated(keep='last')]
 print(f"Size of full data frame: {len(full_df)}")
 
-full_df['Returns'] = np.log(full_df['Close'] / full_df['Close'].shift(1))
-full_df['Range'] = (full_df['High'] - full_df['Low']) / full_df['Close']
-# full_df.dropna(inplace=True)
+full_df['Returns'], full_df['Range'] = functions.get_two_state_data(full_df)
 
 full_df['Open_Normal'] = np.log(full_df['Open'] / full_df['Open'].shift(1))
 full_df['High_Normal'] = np.log(full_df['High'] / full_df['High'].shift(1))
@@ -351,8 +318,6 @@ for i in range(window_size, len(full_df)):
     run_count += 1
     X_train = full_df.iloc[i-window_size:i][['Returns', 'Range']].values
     current_features = full_df.iloc[i:i+1][['Returns', 'Range']].values
-    # X_train = full_df.iloc[i-window_size:i][['Returns', 'Range', 'Open_Normal', 'High_Normal', 'Low_Normal', 'Close_Normal']].values
-    # current_features = full_df.iloc[i:i+1][['Returns', 'Range', 'Open_Normal', 'High_Normal', 'Low_Normal', 'Close_Normal']].values
     
     try:
         model.fit(X_train)
@@ -398,7 +363,7 @@ new_results = full_results[window_size:]
 new_results['Signal'] = signals
 new_results['State'] = states
 
-new_results['Strategy_Returns'] = new_results['Signal'].shift(1) * new_results['Returns']
+new_results['Strategy_Returns'] = algo.buy_and_hold_strategy(new_results)
 new_results['Cumulative_Market'] = np.exp(new_results['Returns'].cumsum())
 new_results['Cumulative_Strategy'] = np.exp(new_results['Strategy_Returns'].cumsum())
 
@@ -427,16 +392,9 @@ for i in range(0, len(bull_regimes)):
 
 print("\n|Phase 8: Recent states and prediction|")
 
-# print("Means and variances of each state (OHLC):")
-# for i in range(model.n_components):
-#     print(f"State {i}:")
-#     for j in range(X.shape[1]):
-#         print(f"  Mean {six_state_shape[j]}: {model.means_[i][j]:.5f}")
-
 # get the state for today
 # use iloc[-1:] to get the latest data point
-today_features = new_results.iloc[-1:][['Returns', 'Range']].values
-# today_features = new_results.iloc[-1:][['Returns', 'Range', 'Open_Normal', 'High_Normal', 'Low_Normal', 'Close_Normal']].values
+today_features = functions.normalize_two_state_data(new_results)
 today_state = model.predict(today_features)[0]
 
 # access the transition matrix
@@ -451,11 +409,11 @@ next_predicted_state = np.argmax(probs_for_tomorrow)
 # check if future state is bullish
 is_bullish = 1 if next_predicted_state in bull_regimes else 0
 
-print("\nMeans and variances of each state:")
+print("Means and variances of each state (Returns & Volatility):")
 for i in range(model.n_components):
     print(f"State {i}{" (Bullish)" if i in bull_regimes else ""}:")
-    print(f"  Mean Returns: {model.means_[i][0]:.5f}")
-    print(f"  Mean Volatility: {model.means_[i][1]:.5f}")
+    for j in range(X.shape[1]):
+        print(f"  Mean {two_state_shape[j]}: {model.means_[i][j]:.5f}")
 
 # table of most recent dates and states
 end_date_range = 10
