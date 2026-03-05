@@ -261,6 +261,10 @@ print(f"Fetching data up to {most_recent_date}")
 
 new_data = yf.download(data_set, start=last_date, end=most_recent_date)
 
+# we'll do a 1-year rolling window
+# 252 trading days in a year
+window_size = 252 
+
 # flatten MultiIndex columns if they exist
 # if isinstance(new_data.columns, pd.MultiIndex):
 #     new_data.columns = new_data.columns.get_level_values(0)
@@ -272,7 +276,7 @@ print("Creating new data series for rolling window...")
 # drop the 'Returns' and 'Range' columns from the tail of test_data 
 # so they don't create NaN columns in the new_data section during concat
 # then concatenate and remove duplicates (the overlapping last_date)
-buffer_data = test_data.tail(252)[['Open', 'High', 'Low', 'Close', 'Volume']]
+buffer_data = test_data.tail(window_size)[['Open', 'High', 'Low', 'Close', 'Volume']]
 full_df = pd.concat([buffer_data, new_data])
 full_df = full_df[~full_df.index.duplicated(keep='last')]
 print(f"Size of full data frame: {len(full_df)}")
@@ -293,9 +297,6 @@ plt.title(f'{data_set} Market Outlook - Rolling Window')
 plt.legend()
 plt.show()
 
-# we'll do a 1-year rolling window
-# 252 trading days in a year
-window_size = 252 
 run_count = 0
 signals = []
 states = []
