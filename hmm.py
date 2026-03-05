@@ -12,7 +12,7 @@ from datetime import datetime
 print("\n|Phase 1: Fetch data|")
 
 # use SPY (S&P 500 ETF) for a good mix of regimes
-data_set = "SPY"
+data_set = "ETH-USD"
 # BTC-USD for regimes in crypto
 # Silver? Oil? Anything?
 print(f"Market: {data_set}")
