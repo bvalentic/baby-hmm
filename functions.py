@@ -15,11 +15,11 @@ def get_two_state_data(data_frame):
 
     return data_frame['Returns'], data_frame['Range']
 
-def get_modified_two_state_data(data_frame):
+# Return the price "delta" between market open and close.
+def get_delta_data(data_frame):
     data_frame['Delta'] = (data_frame['Open'] - data_frame['Close']) / data_frame['Close']
-    data_frame['Range'] = (data_frame['High'] - data_frame['Low']) / data_frame['Close']
     
-    return data_frame['Delta'], data_frame['Range']
+    return data_frame['Delta']
 
 def get_four_state_data(data_frame):
     data_frame['Open_Normal'] = np.log(data_frame['Open'] / data_frame['Open'].shift(1))
@@ -35,7 +35,7 @@ def get_two_state_values(data_frame):
     return data_frame[['Returns', 'Range']].values
 
 def get_modified_two_state_values(data_frame):
-    return data_frame[['Delta', 'Range']].values
+    return data_frame[['Delta', 'Returns']].values
 
 def normalize_four_state_data(data_frame):
     data_frame['Open_Normal'] = np.log(data_frame['Open'] / data_frame['Open'].shift(1))

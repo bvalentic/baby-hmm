@@ -18,8 +18,8 @@ data_set = "SPY"
 print(f"Market: {data_set}")
 
 # pick a good start date?
-start_date = "2021-01-01"
-end_date = "2025-01-01"
+start_date = "2020-01-01"
+end_date = "2024-01-01"
 
 # interval of less than 1d if start - end < 60 days
 interval = "1d"
@@ -53,7 +53,7 @@ covariance_type = "full"
 # number of model iterations
 n_iter = 100
 # add min_covar to prevent "non-positive definite" error
-min_covar=1e-3
+min_covar=1e-4
 # use Viterbi algorithm
 algorithm = "viterbi"
 # "" keeps set variables
