@@ -18,8 +18,8 @@ data_set = "SPY"
 print(f"Market: {data_set}")
 
 # pick a good start date?
-start_date = "2020-01-01"
-end_date = "2024-01-01"
+start_date = "2022-01-01"
+end_date = "2025-01-01"
 
 # interval of less than 1d if start - end < 60 days
 interval = "1d"
@@ -138,11 +138,14 @@ train_data['Signal'] = np.where(train_data['State'].isin(bull_regimes), 1, 0)
 # calculate returns on HMM
 train_data['Strategy_Returns'] = algo.buy_and_hold_strategy(train_data)
 train_data['Algorithm_Portfolio'] = algo.basic_algo(train_data)
+train_data['New_Strategy_Returns'] = algo.new_buy_and_hold(train_data)
 
 # Plot using the index explicitly for X-axis stability
 plt.figure(figsize=(12, 6))
 plt.plot(train_data.index, train_data['Algorithm_Portfolio'], 
          label='Total Portfolio Balance', color='green')
+plt.plot(train_data.index, train_data['New_Strategy_Returns'], 
+         label='Full Buy & Hold Returns', color='red')
 plt.title(f'{data_set}: Portfolio on HMM - Training')
 plt.legend()
 plt.show()
@@ -150,6 +153,7 @@ plt.show()
 # calculate buy & hold returns
 train_data['Cumulative_Market'] = np.exp(train_data['Returns'].cumsum())
 train_data['Cumulative_Strategy'] = np.exp(train_data['Strategy_Returns'].cumsum())
+train_data['Cumulative_Algorithm'] = np.exp(train_data['Algorithm_Portfolio'].cumsum())
 
 # plot training performance
 print("Plotting training performance:")
@@ -175,6 +179,17 @@ if market_final_train > strategy_final_train:
     print("📈 Buy & Hold outperformed the HMM in training.")
 else:
     print("🤖 The HMM strategy beat the market in training!")
+
+# check if the model makes a good prediction:
+# get the transitional matrix for the final state
+train_features_final = train_data.iloc[-1:][['Returns', 'Range']].values
+train_prediction_final = model.predict(train_features_final)[0]
+train_transmat_final = model.transmat_[train_prediction_final]
+print(f"Probabilities for next state: {train_transmat_final}")
+# get largest state, see if first index of new model.predict matches 
+train_predicted_chance_final = train_transmat_final.max()
+train_predicted_state_final = np.where(train_transmat_final == train_predicted_chance_final)[0]
+print(f"Predicted index: {train_predicted_state_final}")
 
 print("\n|Phase 6: Initial test on new data|")
 
