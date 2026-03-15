@@ -141,6 +141,7 @@ train_data['Algorithm_Portfolio'] = algo.basic_algo(train_data)
 train_data['New_Strategy_Returns'] = algo.new_buy_and_hold(train_data)
 
 # Plot using the index explicitly for X-axis stability
+print("Plotting portfolio returns:")
 plt.figure(figsize=(12, 6))
 plt.plot(train_data.index, train_data['Algorithm_Portfolio'], 
          label='Total Portfolio Balance', color='green')
@@ -186,10 +187,9 @@ train_features_final = train_data.iloc[-1:][['Returns', 'Range']].values
 train_prediction_final = model.predict(train_features_final)[0]
 train_transmat_final = model.transmat_[train_prediction_final]
 print(f"Probabilities for next state: {train_transmat_final}")
-# get largest state, see if first index of new model.predict matches 
+# get largest state, to see if first index of new model.predict matches 
 train_predicted_chance_final = train_transmat_final.max()
 train_predicted_state_final = np.where(train_transmat_final == train_predicted_chance_final)[0]
-print(f"Predicted index: {train_predicted_state_final}")
 
 print("\n|Phase 6: Initial test on new data|")
 
@@ -202,6 +202,11 @@ X_test = functions.get_two_state_values(test_data)
 test_states = model.predict(X_test)
 test_data['State'] = test_states
 print(f"Size of test data frame: {len(test_data['State'])}")
+
+# now, check the training predicted state with the first testing state
+test_prediction_first = test_states[0]
+print(f"Model predicted {train_predicted_state_final} with a {train_predicted_chance_final:.2%} chance")
+print(f"First test prediction: {test_prediction_first}")
 
 # add to dataframe and calculate returns
 test_data = test_data.copy() # Avoid SettingWithCopyWarning
@@ -262,6 +267,15 @@ if strategy_final_test > market_final_test:
 else:
     print("\n❌ The HMM underperformed. It might need different features or state counts.")
 
+# now before rolling window, check the model's prediction
+# get the transitional matrix for the final state
+test_features_final = test_data.iloc[-1:][['Returns', 'Range']].values
+test_prediction_final = model.predict(test_features_final)[0]
+test_transmat_final = model.transmat_[test_prediction_final]
+# get largest state, to see if first index of new model.predict matches 
+test_predicted_chance_final = test_transmat_final.max()
+test_predicted_state_final = np.where(test_transmat_final == test_predicted_chance_final)[0]
+
 # next phase - rolling window and walk-forward
 # roll up to present day; 
 # guess latest regime for most recent market close; 
@@ -317,6 +331,11 @@ signals = []
 states = []
 exception_list = []
 
+# use prediction from test data
+current_predicted_high_chance = test_predicted_chance_final 
+current_predicted_index = test_predicted_state_final 
+model_score = 0
+
 print(f"Executing {window_size}-day rolling window from {last_date} to {most_recent_date}:")
 
 for i in range(window_size, len(full_df)):
@@ -336,9 +355,22 @@ for i in range(window_size, len(full_df)):
                 bull_regimes.append(i)
 
         signal = 1 if current_state in bull_regimes else 0
-
         signals.append(signal)
         states.append(current_state)
+
+        # "score" model based on whether or not prediction is correct
+        # using percentage like a 0-100 confidence scale
+        print(f"Recent prediction: {current_predicted_high_chance:.2%} chance of {current_predicted_index}")
+        print(f"Current state: {current_state}")
+        if current_state == current_predicted_index:
+            model_score += current_predicted_high_chance
+        else:
+            model_score -= current_predicted_high_chance
+        # set next values to "current"
+        current_transmat = model.transmat_[current_state]
+        current_predicted_high_chance = current_transmat.max()
+        current_predicted_index = np.where(current_transmat == current_predicted_high_chance)[0]
+
     except Exception as e:
         # if model fails to converge, use signal from previous day
         print(f"Exception caught on window {i}! Exception: {e}")
@@ -346,13 +378,14 @@ for i in range(window_size, len(full_df)):
         signals.append(signals[-1] if signals else 0)
         states.append(states[-1] if states else 0)
         exception_list.append(i)
-
         continue
 
 print("\nRolling window complete.")
 print(f"Executed {run_count}/{len(full_df)-window_size} runs.")
 print(f"Exceptions: {exception_list}\n")
 print("Compiling data...")
+
+print(f"Model score: {model_score}")
 
 # set new bullish states in case they've changed
 positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
