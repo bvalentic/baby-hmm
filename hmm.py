@@ -312,8 +312,6 @@ print(f"Size of full data frame: {len(full_df)}")
 
 full_df['Returns'], full_df['Range'] = functions.get_two_state_data(full_df)
 
-full_df['Open_Normal'], full_df['High_Normal'], full_df['Low_Normal'], full_df['Close_Normal'] = functions.get_four_state_data(full_df)
-
 print(f"New data successfully merged. Total rows: {len(full_df)}")
 print(f"End date: {full_df.index[-1].strftime("%Y-%m-%d")}")
 
@@ -385,7 +383,9 @@ print(f"Executed {run_count}/{len(full_df)-window_size} runs.")
 print(f"Exceptions: {exception_list}\n")
 print("Compiling data...")
 
-print(f"Model score: {model_score}")
+print(f"Model score: {model_score:.2f}")
+average_score = model_score / run_count
+print(f"Average: {average_score}")
 
 # set new bullish states in case they've changed
 positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
@@ -404,7 +404,9 @@ new_results['State'] = states
 new_results['Strategy_Returns'] = algo.buy_and_hold_strategy(new_results)
 new_results['Algorithm_Portfolio'] = algo.basic_algo(new_results)
 
-# Plot using the index explicitly for X-axis stability
+print("Plotting new data:")
+# plot algorithm portfolio
+# plot using the index explicitly for X-axis stability
 plt.figure(figsize=(12, 6))
 plt.plot(new_results.index, new_results['Algorithm_Portfolio'], 
          label='Total Portfolio Balance', color='green')
@@ -418,7 +420,7 @@ new_results['Cumulative_Strategy'] = np.exp(new_results['Strategy_Returns'].cums
 market_final = new_results['Cumulative_Market'].iloc[-1]
 strategy_final = new_results['Cumulative_Strategy'].iloc[-1]
 
-print("Plotting new data:")
+# plot "old" method of market + buy & hold
 plt.figure(figsize=(12, 6))
 plt.plot(new_results['Cumulative_Market'], label='Buy & Hold', color='black')
 plt.plot(new_results['Cumulative_Strategy'], label='HMM Strategy', color='green')
