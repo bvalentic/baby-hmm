@@ -62,3 +62,70 @@ Some examples of regimes found by model:
 | Crash | Sharp decline, high volatility | High negative | High volume |
 | Recovery | High growth, high volatility | High positive | Low volume |
 | --- | --- | --- | --- |
+
+## Roadmap to Prod
+
+### Risk Management & Position Sizing
+
+- **Position sizing algorithm** (Kelly Criterion, fixed fraction, or volatility-adjusted)
+- **Portfolio-level risk limits** (max drawdown, max sector exposure, max correlation between positions)
+- **Risk per trade** limits (e.g., never risk more than 1-2% of account)
+- **Stress testing** - how does the system perform during market crashes or unusual volatility?
+
+### Data Quality & Management
+
+- **Data validation/cleaning pipeline** (handling splits, dividends, corporate actions, bad ticks)
+- **Backfill strategy** for missing data during market hours
+- **Point-in-time data** handling for accurate backtesting (avoiding look-ahead bias)
+- **Multiple data source fallback** if primary API fails
+
+### System Architecture & Operations
+
+- **Message queue/event bus** for decoupling components (data ingestion → signal generation → order execution)
+- **Circuit breakers** at multiple levels (if too many errors, pause trading)
+- **State persistence** so system can recover from crashes without losing context
+- **Time synchronization** and handling of market hours, holidays, early closes
+- **Latency monitoring** - track how long each pipeline stage takes
+
+### Execution Logic
+
+- **Order types and routing logic** (market, limit, stop-loss logic)
+- **Partial fills handling** and order lifecycle management
+- **Slippage modeling** in both backtesting and live trading
+- **Position reconciliation** - compare your records with broker's
+- **Emergency liquidation procedure** if kill switch triggered
+
+### Monitoring & Operations
+
+- **Real-time dashboard** showing P&L, open positions, model confidence, system health
+- **Alerting system** (email/SMS) for critical events (kill switch triggered, API failures, margin calls)
+- **Performance metrics tracking** (Sharpe ratio, max drawdown, win rate) updated continuously
+- **Logging strategy** - structured logs for both debugging and audit trails
+
+### Compliance & Legal
+
+- **Trade journal** for audit trail (regulatory requirements)
+- **Check against restricted securities** (if in US, pattern day trader rules if under $25k)
+- **Tax lot tracking** for tax reporting
+
+### Deployment & Infrastructure
+
+- **Configuration management** (separate from code - feature flags, model parameters)
+- **Secrets management** for API keys
+- **Containerization/Docker** for reproducibility
+- **Orchestration** (how services start, stop, and scale)
+- **Disaster recovery plan** (backup servers, failover strategy)
+
+### Model-Specific Additions
+
+- **Feature drift detection** - monitor if input distributions change
+- **Model versioning** and A/B testing framework for comparing versions
+- **Retraining trigger logic** (not just time-based, but performance-based)
+- **Explainability tools** for understanding why model made certain predictions
+
+### Testing Expansion
+
+- **Paper trading phase** before going live
+- **Market replay testing** against historical data
+- **Chaos engineering** - test how system handles API outages, bad data, etc.
+- **Forward walk testing** (out-of-sample validation over rolling windows)
