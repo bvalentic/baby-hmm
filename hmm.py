@@ -267,15 +267,6 @@ if strategy_final_test > market_final_test:
 else:
     print("\n❌ The HMM underperformed. It might need different features or state counts.")
 
-# now before rolling window, check the model's prediction
-# get the transitional matrix for the final state
-test_features_final = test_data.iloc[-1:][['Returns', 'Range']].values
-test_prediction_final = model.predict(test_features_final)[0]
-test_transmat_final = model.transmat_[test_prediction_final]
-# get largest state, to see if first index of new model.predict matches 
-test_predicted_chance_final = test_transmat_final.max()
-test_predicted_state_final = np.where(test_transmat_final == test_predicted_chance_final)[0]
-
 # next phase - rolling window and walk-forward
 # roll up to present day; 
 # guess latest regime for most recent market close; 
@@ -324,6 +315,15 @@ plt.title(f'{data_set} Market Outlook - Rolling Window')
 plt.legend()
 plt.show()
 
+# now before rolling window, check the model's prediction
+# get the transitional matrix for the final state
+test_features_final = test_data.iloc[-1:][['Returns', 'Range']].values
+test_prediction_final = model.predict(test_features_final)[0]
+test_transmat_final = model.transmat_[test_prediction_final]
+# get largest state, to see if first index of new model.predict matches 
+test_predicted_chance_final = test_transmat_final.max()
+test_predicted_state_final = np.where(test_transmat_final == test_predicted_chance_final)[0][0]
+
 run_count = 0
 signals = []
 states = []
@@ -333,6 +333,8 @@ exception_list = []
 current_predicted_high_chance = test_predicted_chance_final 
 current_predicted_index = test_predicted_state_final 
 model_score = 0
+correct_predictions = 0
+# add high streak?
 
 print(f"Executing {window_size}-day rolling window from {last_date} to {most_recent_date}:")
 
@@ -348,9 +350,9 @@ for i in range(window_size, len(full_df)):
         positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
         low_volatility_regimes = np.where(model.means_[:, 1] < volatility_threshold)[0]
         bull_regimes = []
-        for i in positive_return_regimes:
-            if i in low_volatility_regimes:
-                bull_regimes.append(i)
+        for regime in positive_return_regimes:
+            if regime in low_volatility_regimes:
+                bull_regimes.append(regime)
 
         signal = 1 if current_state in bull_regimes else 0
         signals.append(signal)
@@ -358,16 +360,15 @@ for i in range(window_size, len(full_df)):
 
         # "score" model based on whether or not prediction is correct
         # using percentage like a 0-100 confidence scale
-        print(f"Recent prediction: {current_predicted_high_chance:.2%} chance of {current_predicted_index}")
-        print(f"Current state: {current_state}")
         if current_state == current_predicted_index:
             model_score += current_predicted_high_chance
+            correct_predictions += 1
         else:
             model_score -= current_predicted_high_chance
         # set next values to "current"
         current_transmat = model.transmat_[current_state]
         current_predicted_high_chance = current_transmat.max()
-        current_predicted_index = np.where(current_transmat == current_predicted_high_chance)[0]
+        current_predicted_index = np.where(current_transmat == current_predicted_high_chance)[0][0]
 
     except Exception as e:
         # if model fails to converge, use signal from previous day
@@ -383,11 +384,12 @@ print(f"Executed {run_count}/{len(full_df)-window_size} runs.")
 print(f"Exceptions: {exception_list}\n")
 print("Compiling data...")
 
-print(f"Model score: {model_score:.2f}")
-average_score = model_score / run_count
-print(f"Average: {average_score}")
+print(f"Model score: {model_score:.4f}")
+win_rate = correct_predictions / run_count
+print(f"Win rate: {win_rate:.2%} ({correct_predictions}/{run_count})")
 
 # set new bullish states in case they've changed
+# TODO: remove these checks?
 positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
 low_volatility_regimes = np.where(model.means_[:, 1] < volatility_threshold)[0]
 bull_regimes = []
@@ -404,7 +406,7 @@ new_results['State'] = states
 new_results['Strategy_Returns'] = algo.buy_and_hold_strategy(new_results)
 new_results['Algorithm_Portfolio'] = algo.basic_algo(new_results)
 
-print("Plotting new data:")
+print("\nPlotting new data:")
 # plot algorithm portfolio
 # plot using the index explicitly for X-axis stability
 plt.figure(figsize=(12, 6))
