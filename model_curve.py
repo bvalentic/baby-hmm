@@ -31,9 +31,6 @@ test_end = test_data['Close'].iloc[-1]
 # using returns and volatility:
 train_data['Returns'], train_data['Range'] = functions.get_two_state_data(train_data)
 
-# need to normalize OHLC data before attempting to train on it
-train_data['Open_Normal'], train_data['High_Normal'], train_data['Low_Normal'], train_data['Close_Normal'] = functions.get_four_state_data(train_data)
-
 # hmmlearn expects a 2D array of shape (n_samples, n_features)
 X = functions.get_two_state_values(train_data)
 
@@ -52,10 +49,8 @@ algorithm = "viterbi"
 # "stmc" reinitializes parameters each time 
 init_params = "stmc"
 
-### insert loop here
-
 model_number = 0
-max_model_count = 10
+max_model_count = 20
 
 model_list = []
 score_list = []
@@ -254,34 +249,45 @@ while model_number < max_model_count:
             continue
 
     # print("\nRolling window complete.")
-    print(f"Executed {run_count}/{len(full_df)-window_size} runs.")
-    print(f"Exceptions: {exception_list}")
+    # print(f"Executed {run_count}/{len(full_df)-window_size} runs.")
+    # print(f"Exceptions: {exception_list}")
 
-    print(f"Model score: {model_score:.4f}")
+    # print(f"Model score: {model_score:.4f}")
     win_rate = correct_predictions / run_count
-    print(f"Win rate: {win_rate:.2%} ({correct_predictions}/{run_count})")
+    # print(f"Win rate: {win_rate:.2%} ({correct_predictions}/{run_count})")
 
     model_list.append(model_number)
     score_list.append(model_score)
     win_rate_list.append(win_rate)
 
+    # add model number and continue loop
     model_number += 1
 
-### end of loop
+high_index = np.argmax(score_list)
+high_model = model_list[high_index]
+high_score = score_list[high_index]
+high_win_rate = win_rate_list[high_index]
 
-# plot score and win rate
-plt.plot(model_list, score_list, '.')
+# dot plot of win rate
+plt.plot(model_list, win_rate_list, '.', color='green')
+plt.title("Model Win Rates")
+plt.show()
+
+# dot plot of model scores
+plt.plot(model_list, score_list, '.', color='red')
 plt.title("Model Scores")
 plt.show()
 
-# plot:
-fig, ax = plt.subplots()
-ax.hist(score_list, bins=8, linewidth=0.5, edgecolor="white")
-ax.set(xlim=(0, len(model_list)), xticks=np.arange(1, len(model_list)),
-       ylim=(0, 100), yticks=np.linspace(0, 100, len(model_list)))
+# histogram of model scores
+plt.hist(score_list, bins=8, linewidth=0.5, edgecolor="white")
 plt.title("Model Score Histogram")
 plt.show()
 
-plt.plot(model_list, win_rate_list, '.')
-plt.title("Model Win Rates")
+# histogram of win rate
+plt.hist(win_rate_list, bins=8, linewidth=0.5, edgecolor="white")
+plt.title("Model Score Histogram")
 plt.show()
+
+print(f"Winning model: {high_model}")
+print(f"High score: {high_score:.2f}")
+print(f"High win rate: {high_win_rate:.2%}")
