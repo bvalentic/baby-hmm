@@ -28,6 +28,12 @@ test_data = data[train_size:].copy()
 test_start = test_data['Close'].iloc[0]
 test_end = test_data['Close'].iloc[-1]
 
+# more data
+last_date = test_data.index[-1].strftime("%Y-%m-%d")
+most_recent_date = datetime.today().strftime("%Y-%m-%d")
+
+new_data = yf.download(data_set, start=last_date, end=most_recent_date)
+
 # using returns and volatility:
 train_data['Returns'], train_data['Range'] = functions.get_two_state_data(train_data)
 
@@ -40,7 +46,7 @@ n_components = 2
 # "diag" allows features to be modeled w/o diagonal correlation
 covariance_type = "full"
 # number of model iterations
-n_iter = 100
+n_iter = 500
 # add min_covar to prevent "non-positive definite" error
 min_covar=1e-4
 # use Viterbi algorithm
@@ -50,7 +56,7 @@ algorithm = "viterbi"
 init_params = "stmc"
 
 model_number = 0
-max_model_count = 20
+max_model_count = 16
 
 model_list = []
 score_list = []
@@ -157,11 +163,6 @@ while model_number < max_model_count:
     # guess latest regime for most recent market close; 
     # compare with actual results for a final test.
     # then apply model to the next day?
-
-    last_date = test_data.index[-1].strftime("%Y-%m-%d")
-    most_recent_date = datetime.today().strftime("%Y-%m-%d")
-
-    new_data = yf.download(data_set, start=last_date, end=most_recent_date)
 
     # we'll do a 1-year rolling window
     # 252 trading days in a year
@@ -288,6 +289,6 @@ plt.hist(win_rate_list, bins=8, linewidth=0.5, edgecolor="white")
 plt.title("Model Score Histogram")
 plt.show()
 
-print(f"Winning model: {high_model}")
+print(f"\nWinning model: {high_model}")
 print(f"High score: {high_score:.2f}")
 print(f"High win rate: {high_win_rate:.2%}")

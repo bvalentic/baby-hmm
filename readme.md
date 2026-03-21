@@ -129,3 +129,7 @@ Some examples of regimes found by model:
 - **Market replay testing** against historical data
 - **Chaos engineering** - test how system handles API outages, bad data, etc.
 - **Forward walk testing** (out-of-sample validation over rolling windows)
+
+## More Roadmaps
+
+See [7 Steps to Systematic Investing](https://www.osqf.org/archive/2025/JeffRyan-JustinShea-seminar.pdf) by Jeff Ryan & Justin M Shea for a similar list
