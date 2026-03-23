@@ -46,7 +46,7 @@ n_components = 2
 # "diag" allows features to be modeled w/o diagonal correlation
 covariance_type = "full"
 # number of model iterations
-n_iter = 500
+n_iter = 1000
 # add min_covar to prevent "non-positive definite" error
 min_covar=1e-4
 # use Viterbi algorithm
@@ -56,11 +56,19 @@ algorithm = "viterbi"
 init_params = "stmc"
 
 model_number = 0
-max_model_count = 16
+max_model_count = 32
 
 model_list = []
 score_list = []
+calc_score_list = []
 win_rate_list = []
+# highest models have scored is in the 60s
+# I'll drop down a bit since they don't always reach 60
+high_decade = 60
+high_decade_list = []
+# same for win rate and 60%
+high_win_rate_decade = 0.60
+high_win_rate_list = []
 
 while model_number < max_model_count:
 
@@ -204,7 +212,7 @@ while model_number < max_model_count:
     # use prediction from test data
     current_predicted_high_chance = test_predicted_chance_final 
     current_predicted_index = test_predicted_state_final 
-    model_score = 0
+    calculated_model_score = 0
     correct_predictions = 0
     # add high streak?
 
@@ -231,10 +239,10 @@ while model_number < max_model_count:
             # "score" model based on whether or not prediction is correct
             # using percentage like a 0-100 confidence scale
             if current_state == current_predicted_index:
-                model_score += current_predicted_high_chance
+                calculated_model_score += current_predicted_high_chance
                 correct_predictions += 1
             else:
-                model_score -= current_predicted_high_chance
+                calculated_model_score -= current_predicted_high_chance
             # set next values to "current"
             current_transmat = model.transmat_[current_state]
             current_predicted_high_chance = current_transmat.max()
@@ -258,37 +266,79 @@ while model_number < max_model_count:
     # print(f"Win rate: {win_rate:.2%} ({correct_predictions}/{run_count})")
 
     model_list.append(model_number)
-    score_list.append(model_score)
+    calc_score_list.append(calculated_model_score)
     win_rate_list.append(win_rate)
+
+    if (calculated_model_score > high_decade):
+        high_decade_list.append(model_number)
+    if (win_rate > high_win_rate_decade):
+        high_win_rate_list.append(model_number)
+
+    # score model using built-in method
+    # model_score = model.score(X_train)
+    # score_list.append(model_score)
 
     # add model number and continue loop
     model_number += 1
 
-high_index = np.argmax(score_list)
+high_index = np.argmax(calc_score_list)
 high_model = model_list[high_index]
-high_score = score_list[high_index]
+high_calc_score = calc_score_list[high_index]
 high_win_rate = win_rate_list[high_index]
 
-# dot plot of win rate
-plt.plot(model_list, win_rate_list, '.', color='green')
-plt.title("Model Win Rates")
+# high_score_index = np.argmax(score_list)
+# high_score = score_list[high_score_index]
+
+# plot built-in scores
+# plt.plot(score_list, '.', color = 'black')
+# plt.title("Model Scores")
+# plt.show()
+
+print(f"\nWinning model: {high_model}")
+print(f"High score: {high_calc_score:.2f}")
+print(f"High win rate: {high_win_rate:.2%}")
+
+# compare score and win rate
+print(f"Number of models scored over {high_decade}: {len(high_decade_list)}")
+if (len(high_decade_list) > 0):
+    for i in range(len(high_decade_list)):
+        print(f"Model {high_decade_list[i]}:")
+        print(f"  Calculated score: {calc_score_list[high_decade_list[i]]:.2f}")
+        print(f"  Win rate: {win_rate_list[high_decade_list[i]]:.2%}")
+
+print(f"Number of models with over {high_win_rate_decade:.0%} win rate: {len(high_win_rate_list)}")
+if (len(high_win_rate_list) > 0):
+    for i in range(len(high_win_rate_list)):
+        print(f"Model {high_win_rate_list[i]}:")
+        print(f"  Calculated score: {calc_score_list[high_win_rate_list[i]]:.2f}")
+        print(f"  Win rate: {win_rate_list[high_win_rate_list[i]]:.2%}")
+
+# plots:
+# histogram of model scores
+plt.hist(calc_score_list)
+plt.title("Calculated Model Score Histogram")
 plt.show()
 
 # dot plot of model scores
-plt.plot(model_list, score_list, '.', color='red')
-plt.title("Model Scores")
-plt.show()
-
-# histogram of model scores
-plt.hist(score_list, bins=8, linewidth=0.5, edgecolor="white")
-plt.title("Model Score Histogram")
+plt.plot(calc_score_list, '.', color='red')
+plt.title("Calculated Model Scores")
 plt.show()
 
 # histogram of win rate
-plt.hist(win_rate_list, bins=8, linewidth=0.5, edgecolor="white")
-plt.title("Model Score Histogram")
+plt.hist(win_rate_list)
+plt.title("Win Rate Histogram")
 plt.show()
 
-print(f"\nWinning model: {high_model}")
-print(f"High score: {high_score:.2f}")
-print(f"High win rate: {high_win_rate:.2%}")
+# dot plot of win rate
+plt.plot(win_rate_list, '.', color='green')
+plt.title("Model Win Rates")
+plt.show()
+
+# plot transmat of winning_model
+plt.imshow(high_model.transmat_, aspect='auto', cmap='magma')
+plt.title('Generated Transition Matrix')
+plt.xticks([0, 1])
+plt.xlabel('State To')
+plt.yticks([0, 1])
+plt.ylabel('State From')
+plt.show()
