@@ -344,3 +344,7 @@ plt.xlabel('State To')
 plt.yticks([0, 1])
 plt.ylabel('State From')
 plt.show()
+
+# TODO: print table of recent states and prediction
+
+# TODO: calculate how well winning model performs over randomly guessing
