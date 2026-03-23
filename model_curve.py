@@ -59,6 +59,7 @@ model_number = 0
 max_model_count = 32
 
 model_list = []
+model_number_list = []
 score_list = []
 calc_score_list = []
 win_rate_list = []
@@ -265,7 +266,8 @@ while model_number < max_model_count:
     win_rate = correct_predictions / run_count
     # print(f"Win rate: {win_rate:.2%} ({correct_predictions}/{run_count})")
 
-    model_list.append(model_number)
+    model_list.append(model)
+    model_number_list.append(model_number)
     calc_score_list.append(calculated_model_score)
     win_rate_list.append(win_rate)
 
@@ -281,10 +283,10 @@ while model_number < max_model_count:
     # add model number and continue loop
     model_number += 1
 
-high_index = np.argmax(calc_score_list)
+high_index = np.argmax(win_rate_list)
 high_model = model_list[high_index]
-high_calc_score = calc_score_list[high_index]
-high_win_rate = win_rate_list[high_index]
+high_calc_score = calc_score_list[np.argmax(calc_score_list)]
+high_win_rate = win_rate_list[np.argmax(win_rate_list)]
 
 # high_score_index = np.argmax(score_list)
 # high_score = score_list[high_score_index]

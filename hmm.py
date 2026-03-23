@@ -466,6 +466,15 @@ for i in range(model.n_components):
     for j in range(X.shape[1]):
         print(f"  Mean {two_state_shape[j]}: {model.means_[i][j]:.5f}")
 
+# plot heatmap of transmat
+plt.imshow(model.transmat_, aspect='auto', cmap='magma')
+plt.title('Generated Transition Matrix')
+plt.xticks([0, 1])
+plt.xlabel('State To')
+plt.yticks([0, 1])
+plt.ylabel('State From')
+plt.show()
+
 # table of most recent dates and states
 end_date_range = 10
 print(f"\nMarket: {data_set}")
