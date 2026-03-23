@@ -296,7 +296,7 @@ high_win_rate = win_rate_list[np.argmax(win_rate_list)]
 # plt.title("Model Scores")
 # plt.show()
 
-print(f"\nWinning model: {high_model}")
+print(f"\nWinning model: {high_index}")
 print(f"High score: {high_calc_score:.2f}")
 print(f"High win rate: {high_win_rate:.2%}")
 
@@ -337,7 +337,7 @@ plt.title("Model Win Rates")
 plt.show()
 
 # plot transmat of winning_model
-plt.imshow(high_model.transmat_, aspect='auto', cmap='magma')
+plt.imshow(high_model.transmat_, aspect='auto', cmap='YlOrRd')
 plt.title('Generated Transition Matrix')
 plt.xticks([0, 1])
 plt.xlabel('State To')
