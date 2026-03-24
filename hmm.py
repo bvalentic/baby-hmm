@@ -475,17 +475,13 @@ plt.yticks([0, 1])
 plt.ylabel('State From')
 plt.show()
 
-# table of most recent dates and states
-end_date_range = 10
-print(f"\nMarket: {data_set}")
-print("|--- Date ---|-- State --|---Bull?---|")
-for i in range(0, end_date_range):
-    # reverse index to go in order of dates, from -10 to -1
-    index = end_date_range - i
-    print_date = new_results.index[-index].strftime("%Y-%m-%d")
-    print_state = new_results['State'].iloc[-index]
-    print(f"| {print_date} |     {print_state}     |    {"Yes" if print_state in bull_regimes else "No "}    |") # formatting
-print("|------------|-----------|-----------|\n")
+# using function, but seems to be a day off
+functions.print_most_recent_dates_and_states_table(
+    end_date_range=10,
+    data_set=data_set,
+    data_frame=new_results,
+    bull_regimes=bull_regimes
+    )
 
 print(f"Today's state: {today_state}")
 print("Probabilities for tomorrow:")

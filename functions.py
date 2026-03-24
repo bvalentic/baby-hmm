@@ -48,3 +48,16 @@ def normalize_four_state_data(data_frame):
 
 def normalize_six_state_data(data_frame):
     pass
+
+def print_most_recent_dates_and_states_table(end_date_range, data_set, data_frame, bull_regimes):
+    # table of most recent dates and states
+    print(f"\nMarket: {data_set}")
+    print("|--- Date ---|-- State --|---Bull?---|")
+    for i in range(0, end_date_range):
+        # reverse index to go in order of dates, from -10 to -1
+        index = end_date_range - i
+        print_date = data_frame.index[-index].strftime("%Y-%m-%d")
+        print_state = data_frame['State'].iloc[-index]
+        print(f"| {print_date} |     {print_state}     |    {"Yes" if print_state in bull_regimes else "No "}    |") # formatting
+    print("|------------|-----------|-----------|\n")
+

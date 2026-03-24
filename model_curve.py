@@ -8,11 +8,13 @@ import matplotlib.pyplot as plt
 from hmmlearn import hmm
 from datetime import datetime
 
+import time
+
 # use SPY (S&P 500 ETF) for a good mix of regimes
 data_set = "SPY"
 
 # pick a good start date?
-start_date = "2022-01-01"
+start_date = "2020-01-01"
 end_date = "2025-01-01"
 
 # interval of less than 1d if start - end < 60 days
@@ -46,7 +48,7 @@ n_components = 2
 # "diag" allows features to be modeled w/o diagonal correlation
 covariance_type = "full"
 # number of model iterations
-n_iter = 1000
+n_iter = 100
 # add min_covar to prevent "non-positive definite" error
 min_covar=1e-4
 # use Viterbi algorithm
@@ -70,6 +72,9 @@ high_decade_list = []
 # same for win rate and 60%
 high_win_rate_decade = 0.60
 high_win_rate_list = []
+
+# before loop, start time
+start = time.time()
 
 while model_number < max_model_count:
 
@@ -142,9 +147,6 @@ while model_number < max_model_count:
     # predict uses the existing model parameters to predict the next state
     test_states = model.predict(X_test)
     test_data['State'] = test_states
-
-    # now, check the training predicted state with the first testing state
-    test_prediction_first = test_states[0]
 
     # add to dataframe and calculate returns
     test_data = test_data.copy() # Avoid SettingWithCopyWarning
@@ -283,10 +285,16 @@ while model_number < max_model_count:
     # add model number and continue loop
     model_number += 1
 
+end = time.time()
+
 high_index = np.argmax(win_rate_list)
 high_model = model_list[high_index]
 high_calc_score = calc_score_list[np.argmax(calc_score_list)]
 high_win_rate = win_rate_list[np.argmax(win_rate_list)]
+
+# add state data, for later
+new_results = full_df[window_size:]
+new_results['State'] = states
 
 # high_score_index = np.argmax(score_list)
 # high_score = score_list[high_score_index]
@@ -296,24 +304,29 @@ high_win_rate = win_rate_list[np.argmax(win_rate_list)]
 # plt.title("Model Scores")
 # plt.show()
 
-print(f"\nWinning model: {high_index}")
+print(f"\nRun time: {end - start:.2f}s")
+
+print(f"Model count: {len(model_list)}")
+print(f"Winning model: {high_index}")
 print(f"High score: {high_calc_score:.2f}")
 print(f"High win rate: {high_win_rate:.2%}")
 
 # compare score and win rate
-print(f"Number of models scored over {high_decade}: {len(high_decade_list)}")
+print(f"\nNumber of models scored over {high_decade}: {len(high_decade_list)}")
 if (len(high_decade_list) > 0):
     for i in range(len(high_decade_list)):
         print(f"Model {high_decade_list[i]}:")
         print(f"  Calculated score: {calc_score_list[high_decade_list[i]]:.2f}")
         print(f"  Win rate: {win_rate_list[high_decade_list[i]]:.2%}")
 
-print(f"Number of models with over {high_win_rate_decade:.0%} win rate: {len(high_win_rate_list)}")
+print(f"\nNumber of models with over {high_win_rate_decade:.0%} win rate: {len(high_win_rate_list)}")
 if (len(high_win_rate_list) > 0):
     for i in range(len(high_win_rate_list)):
         print(f"Model {high_win_rate_list[i]}:")
         print(f"  Calculated score: {calc_score_list[high_win_rate_list[i]]:.2f}")
         print(f"  Win rate: {win_rate_list[high_win_rate_list[i]]:.2%}")
+
+# TODO: calculate how well winning model performs over randomly guessing
 
 # plots:
 # histogram of model scores
@@ -336,7 +349,10 @@ plt.plot(win_rate_list, '.', color='green')
 plt.title("Model Win Rates")
 plt.show()
 
-# plot transmat of winning_model
+# print table of recent states and prediction
+functions.print_most_recent_dates_and_states_table(10, data_set, new_results, bull_regimes)
+
+# plot transmat of winning_model after seeing table
 plt.imshow(high_model.transmat_, aspect='auto', cmap='YlOrRd')
 plt.title('Generated Transition Matrix')
 plt.xticks([0, 1])
@@ -344,7 +360,3 @@ plt.xlabel('State To')
 plt.yticks([0, 1])
 plt.ylabel('State From')
 plt.show()
-
-# TODO: print table of recent states and prediction
-
-# TODO: calculate how well winning model performs over randomly guessing
