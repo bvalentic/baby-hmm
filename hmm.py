@@ -31,8 +31,8 @@ train_size = int(len(data) * 0.70)
 train_data = data[:train_size].copy()
 test_data = data[train_size:].copy()
 # get the initial start and end dates of testing
-test_start = test_data['Close'].iloc[0]
-test_end = test_data['Close'].iloc[-1]
+test_start = test_data['Close'].index[0]
+test_end = test_data['Close'].index[-1]
 
 # using returns and volatility:
 train_data['Returns'], train_data['Range'] = functions.get_two_state_data(train_data)
@@ -47,8 +47,11 @@ print("\n|Phase 2: Build & train model|")
 
 # number of market regimes
 n_components = 2
-# "full" allows features to correlate within a state
-# "diag" allows features to be modeled w/o diagonal correlation
+# "spherical" - each state uses a single variance value that applies to all features (default)
+# "diag" - each state uses a diagonal covariance matrix
+# "full" - each state uses a full (i.e. unrestricted) covariance matrix
+# (originally said it 'allows features to correlate within a state')
+# "tied" - all states use the same full covariance matrix
 covariance_type = "full"
 # number of model iterations
 n_iter = 100
@@ -226,6 +229,8 @@ test_data['Signal'] = np.where(test_data['State'].isin(bull_regimes), 1, 0)
 
 print("Plotting predicted regimes:")
 plt.figure(figsize=(12, 6))
+# plot market close, in grey, behind regime plot
+plt.plot(test_data['Close'], '-', label=f"{data_set}", color='grey', markersize=1)
 for i in range(model.n_components):
     state = (test_states == i)
     plt.plot(
@@ -236,7 +241,7 @@ for i in range(model.n_components):
         color=colors[i], 
         markersize=3)
 plt.legend()
-plt.title(f'{data_set}: Regimes Detected by HMM - Backesting')
+plt.title(f'{data_set}: Regimes Detected by HMM - Backtesting')
 plt.show()
 
 # calculate returns
@@ -279,7 +284,8 @@ most_recent_date = datetime.today().strftime("%Y-%m-%d")
 print(f"Last date of test window: {last_date}")
 print(f"Fetching data up to {most_recent_date}")
 
-new_data = yf.download(data_set, start=last_date, end=most_recent_date)
+# don't include #end=most_recent_date; it excludes it from results
+new_data = yf.download(data_set, start=last_date)
 
 # we'll do a 1-year rolling window
 # 252 trading days in a year
@@ -305,6 +311,7 @@ full_df['Returns'], full_df['Range'] = functions.get_two_state_data(full_df)
 
 print(f"New data successfully merged. Total rows: {len(full_df)}")
 print(f"End date: {full_df.index[-1].strftime("%Y-%m-%d")}")
+print(f"Compare with end date on test_data: {test_end.strftime("%Y-%m-%d")}")
 
 # plot market in new data to get an idea of how it has behaved in recent past
 # and also to catch breath before the rolling window
@@ -445,8 +452,9 @@ print("\n|Phase 8: Recent states and prediction|")
 
 # get the state for today
 # use iloc[-1:] to get the latest data point
-today_features = functions.get_two_state_values(new_results)
-today_state = model.predict(today_features)[0]
+latest_features = functions.get_two_state_values(new_results)
+today_state = model.predict(latest_features)[0]
+# TODO: figure out if [0] or [-1] is correct index to use
 
 # access the transition matrix
 # a matrix of [Current State, Next State] probabilities
@@ -466,6 +474,22 @@ for i in range(model.n_components):
     for j in range(X.shape[1]):
         print(f"  Mean {two_state_shape[j]}: {model.means_[i][j]:.5f}")
 
+functions.print_most_recent_dates_and_states_table(
+    end_date_range=10,
+    data_set=data_set,
+    data_frame=new_results,
+    bull_regimes=bull_regimes
+    )
+print(f"Most recent date used: {new_results.index[-1].strftime("%Y-%m-%d")}")
+print(f"Model prediction of most recent state: {today_state}")
+print("Probabilities for tomorrow:")
+
+for i in range(0, probs_for_tomorrow.size):
+    print(f"  State {i}{" (Bullish)" if i in bull_regimes else ""}: {probs_for_tomorrow[i]:.2%}")
+
+print(f"Predicted state for {data_set} tomorrow: {next_predicted_state}")
+print(f"Action for {data_set} Tomorrow: {'🚀 BUY BUY BUY' if is_bullish else '💰 SELL SELL SELL'}")
+print("Transitional matrix:")
 # plot heatmap of transmat
 plt.imshow(model.transmat_, aspect='auto', cmap='magma')
 plt.title('Generated Transition Matrix')
@@ -474,20 +498,3 @@ plt.xlabel('State To')
 plt.yticks([0, 1])
 plt.ylabel('State From')
 plt.show()
-
-# using function, but seems to be a day off
-functions.print_most_recent_dates_and_states_table(
-    end_date_range=10,
-    data_set=data_set,
-    data_frame=new_results,
-    bull_regimes=bull_regimes
-    )
-
-print(f"Today's state: {today_state}")
-print("Probabilities for tomorrow:")
-
-for i in range(0, probs_for_tomorrow.size):
-    print(f"  State {i}{" (Bullish)" if i in bull_regimes else ""}: {probs_for_tomorrow[i]:.2%}")
-
-print(f"Predicted state for {data_set} tomorrow: {next_predicted_state}")
-print(f"Action for {data_set} Tomorrow: {'🚀 BUY BUY BUY' if is_bullish else '💰 SELL SELL SELL'}")
