@@ -34,7 +34,7 @@ test_end = test_data['Close'].iloc[-1]
 last_date = test_data.index[-1].strftime("%Y-%m-%d")
 most_recent_date = datetime.today().strftime("%Y-%m-%d")
 
-new_data = yf.download(data_set, start=last_date, end=most_recent_date)
+new_data = yf.download(data_set, start=last_date)
 
 # using returns and volatility:
 train_data['Returns'], train_data['Range'] = functions.get_two_state_data(train_data)
@@ -65,6 +65,7 @@ model_number_list = []
 score_list = []
 calc_score_list = []
 win_rate_list = []
+signals_and_states = []
 # highest models have scored is in the 60s
 # I'll drop down a bit since they don't always reach 60
 high_decade = 60
@@ -93,14 +94,6 @@ while model_number < max_model_count:
 
     # add states back to the dataframe for analysis
     train_data['State'] = hidden_states
-
-    # define colors for up to 6 states
-    colors = ['green', 'red', 'blue', 'orange', "purple", "brown"]
-
-    # list out names of parameters for easier printing
-    two_state_shape = ['Returns', 'Volatility']
-    four_state_shape = ['Open', 'High', 'Low', 'Close']
-    six_state_shape = ['Returns', 'Range', 'Open', 'High', 'Low', 'Close']
 
     positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
 
@@ -278,9 +271,7 @@ while model_number < max_model_count:
     if (win_rate > high_win_rate_decade):
         high_win_rate_list.append(model_number)
 
-    # score model using built-in method
-    # model_score = model.score(X_train)
-    # score_list.append(model_score)
+    signals_and_states.append((signals, states))
 
     # add model number and continue loop
     model_number += 1
@@ -294,15 +285,7 @@ high_win_rate = win_rate_list[np.argmax(win_rate_list)]
 
 # add state data, for later
 new_results = full_df[window_size:]
-new_results['State'] = states
-
-# high_score_index = np.argmax(score_list)
-# high_score = score_list[high_score_index]
-
-# plot built-in scores
-# plt.plot(score_list, '.', color = 'black')
-# plt.title("Model Scores")
-# plt.show()
+new_results['State'] = signals_and_states[high_index][1]
 
 print(f"\nRun time: {end - start:.2f}s")
 
@@ -325,8 +308,6 @@ if (len(high_win_rate_list) > 0):
         print(f"Model {high_win_rate_list[i]}:")
         print(f"  Calculated score: {calc_score_list[high_win_rate_list[i]]:.2f}")
         print(f"  Win rate: {win_rate_list[high_win_rate_list[i]]:.2%}")
-
-# TODO: calculate how well winning model performs over randomly guessing
 
 # plots:
 # histogram of model scores

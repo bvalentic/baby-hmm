@@ -9,6 +9,9 @@ import matplotlib.pyplot as plt
 from hmmlearn import hmm
 from datetime import datetime
 
+# TODO list:
+# use highest-scoring model as basis for another round of models
+
 print("\n|Phase 1: Fetch data|")
 
 # use SPY (S&P 500 ETF) for a good mix of regimes
@@ -412,6 +415,19 @@ new_results['State'] = states
 
 new_results['Strategy_Returns'] = algo.buy_and_hold_strategy(new_results)
 new_results['Algorithm_Portfolio'] = algo.basic_algo(new_results)
+
+# get "control group" of random guesses
+new_results_guesses = functions.guess_list(signals, n_components)
+new_results['Guesses'] = new_results_guesses
+
+# compare with signal
+guess_score = 0
+for item in range(len(signals)):
+    if signals[item] == new_results_guesses[item]:
+        guess_score += 1
+guess_win_rate = guess_score / len(signals)
+
+print(f"Guessing win rate: {guess_win_rate}")
 
 print("\nPlotting new data:")
 # plot algorithm portfolio
