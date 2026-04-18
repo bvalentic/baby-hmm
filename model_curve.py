@@ -26,14 +26,10 @@ data = yf.download(data_set, start=start_date, end=end_date, interval=interval)
 train_size = int(len(data) * 0.70)
 train_data = data[:train_size].copy()
 test_data = data[train_size:].copy()
-# get the initial start and end dates of testing
-test_start = test_data['Close'].iloc[0]
-test_end = test_data['Close'].iloc[-1]
 
 # more data
 last_date = test_data.index[-1].strftime("%Y-%m-%d")
 most_recent_date = datetime.today().strftime("%Y-%m-%d")
-
 new_data = yf.download(data_set, start=last_date)
 
 # using returns and volatility:
@@ -59,20 +55,10 @@ init_params = "stmc"
 
 model_number = 0
 max_model_count = 32
-
 model_list = []
-model_number_list = []
 score_list = []
-calc_score_list = []
 win_rate_list = []
 signals_and_states = []
-# highest models have scored is in the 60s
-# I'll drop down a bit since they don't always reach 60
-high_decade = 60
-high_decade_list = []
-# same for win rate and 60%
-high_win_rate_decade = 0.60
-high_win_rate_list = []
 
 # before loop, start time
 start = time.time()
@@ -110,19 +96,6 @@ while model_number < max_model_count:
     # create a signal: 1 if in bullish state, 0 otherwise
     train_data['Signal'] = np.where(train_data['State'].isin(bull_regimes), 1, 0)
 
-    # calculate returns on HMM
-    train_data['Strategy_Returns'] = algo.buy_and_hold_strategy(train_data)
-    train_data['Algorithm_Portfolio'] = algo.basic_algo(train_data)
-    train_data['New_Strategy_Returns'] = algo.new_buy_and_hold(train_data)
-
-    # calculate buy & hold returns
-    train_data['Cumulative_Market'] = np.exp(train_data['Returns'].cumsum())
-    train_data['Cumulative_Strategy'] = np.exp(train_data['Strategy_Returns'].cumsum())
-    train_data['Cumulative_Algorithm'] = np.exp(train_data['Algorithm_Portfolio'].cumsum())
-
-    market_final_train = train_data['Cumulative_Market'].iloc[-1]
-    strategy_final_train = train_data['Cumulative_Strategy'].iloc[-1]
-
     # check if the model makes a good prediction:
     # get the transitional matrix for the final state
     train_features_final = train_data.iloc[-1:][['Returns', 'Range']].values
@@ -143,6 +116,7 @@ while model_number < max_model_count:
 
     # add to dataframe and calculate returns
     test_data = test_data.copy() # Avoid SettingWithCopyWarning
+    # reset bull market signal using new data
     positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
     low_volatility_regimes = np.where(model.means_[:, 1] < volatility_threshold)[0]
     bull_regimes = []
@@ -151,16 +125,6 @@ while model_number < max_model_count:
             bull_regimes.append(i)
 
     test_data['Signal'] = np.where(test_data['State'].isin(bull_regimes), 1, 0)
-
-    # calculate returns
-    test_data['Strategy_Returns'] = algo.buy_and_hold_strategy(test_data)
-
-    # calculate cumulative growth
-    test_data['Cumulative_Market'] = np.exp(test_data['Returns'].cumsum())
-    test_data['Cumulative_Strategy'] = np.exp(test_data['Strategy_Returns'].cumsum())
-
-    market_final_test = test_data['Cumulative_Market'].iloc[-1]
-    strategy_final_test = test_data['Cumulative_Strategy'].iloc[-1]
 
     # next phase - rolling window and walk-forward
     # roll up to present day; 
@@ -177,8 +141,8 @@ while model_number < max_model_count:
     #     new_data.columns = new_data.columns.get_level_values(0)
 
     # combine with a bit of old data so the first "new" prediction has a training window
-
     # use most recent trading year from old data
+
     # drop the 'Returns' and 'Range' columns from the tail of test_data 
     # so they don't create NaN columns in the new_data section during concat
     # then concatenate and remove duplicates (the overlapping last_date)
@@ -187,9 +151,6 @@ while model_number < max_model_count:
     full_df = full_df[~full_df.index.duplicated(keep='last')]
 
     full_df['Returns'], full_df['Range'] = functions.get_two_state_data(full_df)
-
-    # plot market in new data to get an idea of how it has behaved in recent past
-    # and also to catch breath before the rolling window
 
     # now before rolling window, check the model's prediction
     # get the transitional matrix for the final state
@@ -208,9 +169,8 @@ while model_number < max_model_count:
     # use prediction from test data
     current_predicted_high_chance = test_predicted_chance_final 
     current_predicted_index = test_predicted_state_final 
-    calculated_model_score = 0
+    model_score = 0
     correct_predictions = 0
-    # add high streak?
 
     for i in range(window_size, len(full_df)):
         run_count += 1
@@ -235,10 +195,10 @@ while model_number < max_model_count:
             # "score" model based on whether or not prediction is correct
             # using percentage like a 0-100 confidence scale
             if current_state == current_predicted_index:
-                calculated_model_score += current_predicted_high_chance
+                model_score += current_predicted_high_chance
                 correct_predictions += 1
             else:
-                calculated_model_score -= current_predicted_high_chance
+                model_score -= current_predicted_high_chance
             # set next values to "current"
             current_transmat = model.transmat_[current_state]
             current_predicted_high_chance = current_transmat.max()
@@ -253,24 +213,10 @@ while model_number < max_model_count:
             exception_list.append(i)
             continue
 
-    # print("\nRolling window complete.")
-    # print(f"Executed {run_count}/{len(full_df)-window_size} runs.")
-    # print(f"Exceptions: {exception_list}")
-
-    # print(f"Model score: {model_score:.4f}")
     win_rate = correct_predictions / run_count
-    # print(f"Win rate: {win_rate:.2%} ({correct_predictions}/{run_count})")
-
     model_list.append(model)
-    model_number_list.append(model_number)
-    calc_score_list.append(calculated_model_score)
+    score_list.append(model_score)
     win_rate_list.append(win_rate)
-
-    if (calculated_model_score > high_decade):
-        high_decade_list.append(model_number)
-    if (win_rate > high_win_rate_decade):
-        high_win_rate_list.append(model_number)
-
     signals_and_states.append((signals, states))
 
     # add model number and continue loop
@@ -278,60 +224,88 @@ while model_number < max_model_count:
 
 end = time.time()
 
+# determine winningest model and use that one
 high_index = np.argmax(win_rate_list)
 high_model = model_list[high_index]
-high_calc_score = calc_score_list[np.argmax(calc_score_list)]
-high_win_rate = win_rate_list[np.argmax(win_rate_list)]
-
-# add state data, for later
-new_results = full_df[window_size:]
-new_results['State'] = signals_and_states[high_index][1]
+model = high_model
+signals = signals_and_states[high_index][0]
+states = signals_and_states[high_index][1]
 
 print(f"\nRun time: {end - start:.2f}s")
-
 print(f"Model count: {len(model_list)}")
 print(f"Winning model: {high_index}")
-print(f"High score: {high_calc_score:.2f}")
-print(f"High win rate: {high_win_rate:.2%}")
+print(f"High score: {score_list[high_index]:.2f}")
+print(f"High win rate: {win_rate_list[high_index]:.2%}")
 
-# compare score and win rate
-print(f"\nNumber of models scored over {high_decade}: {len(high_decade_list)}")
-if (len(high_decade_list) > 0):
-    for i in range(len(high_decade_list)):
-        print(f"Model {high_decade_list[i]}:")
-        print(f"  Calculated score: {calc_score_list[high_decade_list[i]]:.2f}")
-        print(f"  Win rate: {win_rate_list[high_decade_list[i]]:.2%}")
+# set new bullish states in case they've changed
+positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
+low_volatility_regimes = np.where(model.means_[:, 1] < volatility_threshold)[0]
+bull_regimes = []
+for i in positive_return_regimes:
+    if i in low_volatility_regimes:
+        bull_regimes.append(i)
 
-print(f"\nNumber of models with over {high_win_rate_decade:.0%} win rate: {len(high_win_rate_list)}")
-if (len(high_win_rate_list) > 0):
-    for i in range(len(high_win_rate_list)):
-        print(f"Model {high_win_rate_list[i]}:")
-        print(f"  Calculated score: {calc_score_list[high_win_rate_list[i]]:.2f}")
-        print(f"  Win rate: {win_rate_list[high_win_rate_list[i]]:.2%}")
+# Add the signals and states to dataframe
+full_results = full_df.copy()
+new_results = full_results[window_size:]
+new_results['Signal'] = signals
+new_results['State'] = states
 
-# plots:
-# histogram of model scores
-plt.hist(calc_score_list)
-plt.title("Calculated Model Score Histogram")
+# subplots:
+fig, axs = plt.subplots(2, 2)
+fig.set_figwidth(10)
+fig.set_figheight(7)
+# plot 1: histogram of model scores
+axs[0, 0].hist(score_list)
+axs[0, 0].set_title('Model Score Histogram')
+# plot 2: dot plot of model scores
+axs[0, 1].plot(score_list, '.', color='red')
+axs[0, 1].set_title('Model Scores')
+# plot 3: histogram of win rate
+axs[1, 0].hist(win_rate_list)
+axs[1, 0].set_title('Win Rate Histogram')
+# plot 4: dot plot of win rate
+axs[1, 1].plot(range(0, len(win_rate_list)), win_rate_list, '.', color='green')
+axs[1, 1].set_title('Model Win Rates')
 plt.show()
 
-# dot plot of model scores
-plt.plot(calc_score_list, '.', color='red')
-plt.title("Calculated Model Scores")
-plt.show()
+# get the state for most recent time interval
+# use iloc[-1:] to get the latest data point
+most_recent_features = new_results.iloc[-1:][['Returns', 'Range']].values
+most_recent_state = model.predict(most_recent_features)[0]
+# most_recent_state = model.predict(most_recent_features)[-1]
 
-# histogram of win rate
-plt.hist(win_rate_list)
-plt.title("Win Rate Histogram")
-plt.show()
+# access the transition matrix
+# a matrix of [Current State, Next State] probabilities
+# shape is (n_components, n_components)
+transition_matrix = model.transmat_
 
-# dot plot of win rate
-plt.plot(win_rate_list, '.', color='green')
-plt.title("Model Win Rates")
-plt.show()
+# find the most likely next state
+probs_for_next_state = transition_matrix[most_recent_state]
+next_predicted_state = np.argmax(probs_for_next_state)
+
+# check if future state is bullish
+is_bullish = 1 if next_predicted_state in bull_regimes else 0
+
+# leaving this for now so that I have some idea of what's going on
+print("\nMeans and variances of each state:")
+for i in range(model.n_components):
+    print(f"State {i}{" (Bullish)" if i in bull_regimes else ""}:")
+    print(f"  Mean Returns: {model.means_[i][0]:.5f}")
+    print(f"  Mean Volatility: {model.means_[i][1]:.5f}")
 
 # print table of recent states and prediction
 functions.print_most_recent_dates_and_states_table(10, data_set, new_results, bull_regimes)
+
+print(f"Most recent date used: {new_results.index[-1].strftime("%Y-%m-%d")}")
+print(f"Model prediction of most recent state: {most_recent_state}")
+print("Probabilities for tomorrow:")
+
+for i in range(0, probs_for_next_state.size):
+    print(f"  State {i}{" (Bullish)" if i in bull_regimes else ""}: {probs_for_next_state[i]:.2%}")
+
+print(f"Predicted state for {data_set} tomorrow: {next_predicted_state}")
+print(f"Action for {data_set} Tomorrow: {'🚀 BUY BUY BUY' if is_bullish else '💰 SELL SELL SELL'}")
 
 # plot transmat of winning_model after seeing table
 plt.imshow(high_model.transmat_, aspect='auto', cmap='YlOrRd')
