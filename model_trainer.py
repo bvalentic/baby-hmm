@@ -1,6 +1,6 @@
 import functions
-import baby_algo as algo
 
+import time
 import numpy as np
 import pandas as pd
 import yfinance as yf
@@ -8,18 +8,16 @@ from hmmlearn import hmm
 from datetime import datetime
 
 class ModelTrainer():
-    def train_new_day_model():
-        # use SPY (S&P 500 ETF) for a good mix of regimes
-        data_set = "SPY"
+    def __init__(self, data_set, start_date, end_date):
+        self.data_set = data_set
+        self.start_date = start_date
+        self.end_date = end_date
 
-        # pick a good start date?
-        start_date = "2022-01-01"
-        end_date = "2025-01-01"
-
-        # interval of less than 1d if start - end < 60 days
+    def train_new_day_model(self, max_model_count):
+        # because this is the day model, use 1-day interval
         interval = "1d"
 
-        data = yf.download(data_set, start=start_date, end=end_date, interval=interval)
+        data = yf.download(self.data_set, start=self.start_date, end=self.end_date, interval=interval)
 
         # separate dataset into training and testing data
         train_size = int(len(data) * 0.70)
@@ -30,7 +28,7 @@ class ModelTrainer():
         last_date = test_data.index[-1].strftime("%Y-%m-%d")
         most_recent_date = datetime.today().strftime("%Y-%m-%d")
 
-        new_data = yf.download(data_set, start=last_date, end=most_recent_date)
+        new_data = yf.download(self.data_set, start=last_date, end=most_recent_date)
 
         # using returns and volatility:
         train_data['Returns'], train_data['Range'] = functions.get_two_state_data(train_data)
@@ -54,10 +52,13 @@ class ModelTrainer():
         init_params = "stmc"
 
         model_number = 0
-        max_model_count = 16
 
         model_list = []
         score_list = []
+        win_rate_list = []
+        signals_and_states = []
+
+        start = time.time()
 
         while model_number < max_model_count:
 
@@ -90,16 +91,6 @@ class ModelTrainer():
 
             # create a signal: 1 if in bullish state, 0 otherwise
             train_data['Signal'] = np.where(train_data['State'].isin(bull_regimes), 1, 0)
-
-            # calculate returns on HMM
-            train_data['Strategy_Returns'] = algo.buy_and_hold_strategy(train_data)
-            train_data['Algorithm_Portfolio'] = algo.basic_algo(train_data)
-            train_data['New_Strategy_Returns'] = algo.new_buy_and_hold(train_data)
-
-            # calculate buy & hold returns
-            train_data['Cumulative_Market'] = np.exp(train_data['Returns'].cumsum())
-            train_data['Cumulative_Strategy'] = np.exp(train_data['Strategy_Returns'].cumsum())
-            train_data['Cumulative_Algorithm'] = np.exp(train_data['Algorithm_Portfolio'].cumsum())
             
             # prepare the test features (must be the same columns as training)
             test_data['Returns'], test_data['Range'] = functions.get_two_state_data(test_data)
@@ -210,13 +201,32 @@ class ModelTrainer():
                     exception_list.append(i)
                     continue
 
-            model_list.append(model_number)
+            win_rate = correct_predictions / run_count
+            model_list.append(model)
             score_list.append(model_score)
+            win_rate_list.append(win_rate)
+            signals_and_states.append((signals, states))
 
             # add model number and continue loop
             model_number += 1
 
+        end = time.time()
+
         high_index = np.argmax(score_list)
         high_model = model_list[high_index]
+        high_signals = signals_and_states[high_index][0]
+        high_states = signals_and_states[high_index][1]
 
-        return high_model
+        print(f"\nRun time: {end - start:.2f}s")
+
+        print(f"\nModel count: {len(model_list)}")
+        print(f"Winning model: {high_index}")
+        print(f"High score: {score_list[high_index]:.2f}")
+        print(f"High win rate: {win_rate_list[high_index]:.2%}")
+
+        full_results = full_df.copy()
+        new_results = full_results[window_size:]
+        new_results['Signal'] = high_signals
+        new_results['State'] = high_states
+
+        return high_model, new_results
