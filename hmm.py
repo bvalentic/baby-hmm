@@ -11,6 +11,7 @@ from datetime import datetime
 
 # TODO list:
 # use highest-scoring model as basis for another round of models
+# attempt adding a third parameter of "volume" 
 
 print("\n|Phase 1: Fetch data|")
 

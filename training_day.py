@@ -4,7 +4,6 @@
 
 import model_trainer
 import functions
-import time
 import numpy as np
 
 data_set = "SPY"
