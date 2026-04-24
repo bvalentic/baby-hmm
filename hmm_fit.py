@@ -1,9 +1,11 @@
+# HMM fit
+# "slim" version of program that runs n models and prints the latest results, no plots
+
 import functions
 
 import numpy as np
 import pandas as pd
 import yfinance as yf
-import matplotlib.pyplot as plt
 from hmmlearn import hmm
 from datetime import datetime
 
@@ -20,7 +22,9 @@ end_date = "2025-01-01"
 interval = "1d"
 
 # number of models to run
-max_model_count = 32
+# seems to be 1 model ~= 3.3s
+# 20 models is just over a minute
+max_model_count = 20
 
 # we'll do a 1-year rolling window
 # 252 trading days in a year

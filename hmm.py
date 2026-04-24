@@ -22,7 +22,7 @@ data_set = "SPY"
 print(f"Market: {data_set}")
 
 # pick a good start date?
-start_date = "2022-01-01"
+start_date = "2013-01-01"
 end_date = "2025-01-01"
 
 # interval of less than 1d if start - end < 60 days
@@ -40,9 +40,6 @@ test_end = test_data['Close'].index[-1]
 
 # using returns and volatility:
 train_data['Returns'], train_data['Range'] = functions.get_two_state_data(train_data)
-
-# need to normalize OHLC data before attempting to train on it
-train_data['Open_Normal'], train_data['High_Normal'], train_data['Low_Normal'], train_data['Close_Normal'] = functions.get_four_state_data(train_data)
 
 # hmmlearn expects a 2D array of shape (n_samples, n_features)
 X = functions.get_two_state_values(train_data)
