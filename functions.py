@@ -9,6 +9,7 @@ def print_means():
     print("Means and variances of each state:")
     
 # Return the variables used in original two-state models: returns (close vs. next day close) and range (volatility: high minus low)
+# (I think it's actually setting the 'Returns' and 'Range' in the data_frame and the return is NaN)
 def get_two_state_data(data_frame):
     data_frame['Returns'] = np.log(data_frame['Close'] / data_frame['Close'].shift(1))
     data_frame['Range'] = (data_frame['High'] - data_frame['Low']) / data_frame['Close']

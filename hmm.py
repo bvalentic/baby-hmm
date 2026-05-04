@@ -10,8 +10,17 @@ from hmmlearn import hmm
 from datetime import datetime
 
 # TODO list:
-# use highest-scoring model as basis for another round of models
-# attempt adding a third parameter of "volume" 
+# - Use highest-scoring model as basis for another round of models
+# - Attempt adding a third parameter:
+#   - Volume
+#   - Difference between last day's close and next day's open
+# - Compare winning model to: 
+#   - (1) a persistence model (today's regime = yesterday's regime)
+#   - (2) a random walk baseline
+#   - (3) a simple moving-average trend filter
+#   - and translates to a positive Sharpe on a paper trading strategy
+# - If HMM beats all of the above on out-of-sample data, ship to prod
+
 
 print("\n|Phase 1: Fetch data|")
 
@@ -177,8 +186,6 @@ strategy_final_train = train_data['Cumulative_Strategy'].iloc[-1]
 
 print(f"  Training Period Market Return: {(market_final_train - 1):.2%}")
 print(f"  Training Period Strategy Return: {(strategy_final_train - 1):.2%}")
-
-# TODO: calculate Sharpe ratio
 
 if market_final_train > strategy_final_train:
     print("📈 Buy & Hold outperformed the HMM in training.")
@@ -397,7 +404,7 @@ win_rate = correct_predictions / run_count
 print(f"Win rate: {win_rate:.2%} ({correct_predictions}/{run_count})")
 
 # set new bullish states in case they've changed
-# TODO: remove these checks?
+# (shouldn't change after rolling window, but just to be safe)
 positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
 low_volatility_regimes = np.where(model.means_[:, 1] < volatility_threshold)[0]
 bull_regimes = []

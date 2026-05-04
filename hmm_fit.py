@@ -22,9 +22,11 @@ end_date = "2025-01-01"
 interval = "1d"
 
 # number of models to run
-# seems to be 1 model ~= 3.3s
+# seems to be 1 model ~= 1.97s
+# (was 3.3s before refactor)
 # 20 models is just over a minute
-max_model_count = 20
+# (new estimate after refactor is ~=2s)
+max_model_count = 32
 
 # we'll do a 1-year rolling window
 # 252 trading days in a year
@@ -59,7 +61,8 @@ X_test = functions.get_two_state_values(test_data)
 # drop the 'Returns' and 'Range' columns from the tail of test_data 
 # so they don't create NaN columns in the new_data section during concat
 # then concatenate and remove duplicates (the overlapping last_date)
-buffer_data = test_data.tail(window_size)[['Open', 'High', 'Low', 'Close', 'Volume']]
+# buffer_data = test_data.tail(window_size)[['Open', 'High', 'Low', 'Close', 'Volume']]
+buffer_data = test_data.iloc[window_size:][['Open', 'High', 'Low', 'Close', 'Volume']].copy()
 full_df = pd.concat([buffer_data, new_data])
 full_df = full_df[~full_df.index.duplicated(keep='last')]
 full_df['Returns'], full_df['Range'] = functions.get_two_state_data(full_df)
@@ -108,14 +111,9 @@ while model_number < max_model_count:
 
     positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
 
-    # try adding volatility check
-    volatility_threshold = 0.070
-    low_volatility_regimes = np.where(model.means_[:, 1] < volatility_threshold)[0]
-
-    bull_regimes = []
+    train_bull_regimes = []
     for i in positive_return_regimes:
-        if i in low_volatility_regimes:
-            bull_regimes.append(i)
+        train_bull_regimes.append(i)
 
     # predict uses the existing model parameters to predict the next state
     test_states = model.predict(X_test)
@@ -161,11 +159,9 @@ while model_number < max_model_count:
             current_state = model.predict(current_features)[0]
 
             positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
-            low_volatility_regimes = np.where(model.means_[:, 1] < volatility_threshold)[0]
             bull_regimes = []
             for regime in positive_return_regimes:
-                if regime in low_volatility_regimes:
-                    bull_regimes.append(regime)
+                bull_regimes.append(regime)
 
             signal = 1 if current_state in bull_regimes else 0
             signals.append(signal)
@@ -207,8 +203,8 @@ end = time.time()
 high_index = np.argmax(win_rate_list)
 high_model = model_list[high_index]
 model = high_model
-signals = signals_and_states[high_index][0]
-states = signals_and_states[high_index][1]
+winning_signals = signals_and_states[high_index][0]
+winning_states = signals_and_states[high_index][1]
 
 print(f"\nRun time: {end - start:.2f}s")
 print(f"Model count: {len(model_list)}")
@@ -217,18 +213,17 @@ print(f"High score: {score_list[high_index]:.2f}")
 print(f"High win rate: {win_rate_list[high_index]:.2%}")
 
 # set new bullish states in case they've changed
-positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
-low_volatility_regimes = np.where(model.means_[:, 1] < volatility_threshold)[0]
-bull_regimes = []
-for i in positive_return_regimes:
-    if i in low_volatility_regimes:
-        bull_regimes.append(i)
+# special case if all regimes are bull regimes? Redo, grab next model, or just notate it?
+winning_positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
+winning_bull_regimes = []
+for i in winning_positive_return_regimes:
+    winning_bull_regimes.append(i)
 
 # Add the signals and states to dataframe
 full_results = full_df.copy()
-new_results = full_results[window_size:]
-new_results['Signal'] = signals
-new_results['State'] = states
+new_results = full_results.iloc[window_size:].copy() # avoid SettingWithCopyWarning
+new_results['Signal'] = winning_signals
+new_results['State'] = winning_states
 
 # get the state for most recent time interval
 # use iloc[-1:] to get the latest data point
@@ -245,24 +240,24 @@ probs_for_next_state = transition_matrix[most_recent_state]
 next_predicted_state = np.argmax(probs_for_next_state)
 
 # check if future state is bullish
-is_bullish = 1 if next_predicted_state in bull_regimes else 0
+is_bullish = 1 if next_predicted_state in winning_bull_regimes else 0
 
 # print means and variances
 print("\nMeans and variances of each state:")
 for i in range(model.n_components):
-    print(f"State {i}{" (Bullish)" if i in bull_regimes else ""}:")
+    print(f"State {i}{" (Bullish)" if i in winning_bull_regimes else ""}:")
     print(f"  Mean Returns: {model.means_[i][0]:.5f}")
     print(f"  Mean Volatility: {model.means_[i][1]:.5f}")
 
 # print table of recent states and prediction
-functions.print_most_recent_dates_and_states_table(10, data_set, new_results, bull_regimes)
+functions.print_most_recent_dates_and_states_table(10, data_set, new_results, winning_bull_regimes)
 
 print(f"Most recent date used: {new_results.index[-1].strftime("%Y-%m-%d")}")
 print(f"Model prediction of most recent state: {most_recent_state}")
 print("Probabilities for tomorrow:")
 
 for i in range(0, probs_for_next_state.size):
-    print(f"  State {i}{" (Bullish)" if i in bull_regimes else ""}: {probs_for_next_state[i]:.2%}")
+    print(f"  State {i}{" (Bullish)" if i in winning_bull_regimes else ""}: {probs_for_next_state[i]:.2%}")
 
 print(f"Predicted state for {data_set} tomorrow: {next_predicted_state}")
 print(f"Action for {data_set} Tomorrow: {'🚀 BUY BUY BUY' if is_bullish else '💰 SELL SELL SELL'}")
