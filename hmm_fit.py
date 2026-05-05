@@ -22,10 +22,8 @@ end_date = "2025-01-01"
 interval = "1d"
 
 # number of models to run
-# seems to be 1 model ~= 1.97s
-# (was 3.3s before refactor)
-# 20 models is just over a minute
-# (new estimate after refactor is ~=2s)
+# seems to be 1 model ~= 3.23s total runtime
+# (refactor had it down to 1.97s)
 max_model_count = 32
 
 # we'll do a 1-year rolling window
@@ -61,8 +59,9 @@ X_test = functions.get_two_state_values(test_data)
 # drop the 'Returns' and 'Range' columns from the tail of test_data 
 # so they don't create NaN columns in the new_data section during concat
 # then concatenate and remove duplicates (the overlapping last_date)
-# buffer_data = test_data.tail(window_size)[['Open', 'High', 'Low', 'Close', 'Volume']]
-buffer_data = test_data.iloc[window_size:][['Open', 'High', 'Low', 'Close', 'Volume']].copy()
+buffer_data = test_data.tail(window_size)[['Open', 'High', 'Low', 'Close', 'Volume']]
+# doing iloc and copy as suggested makes the model quicker, but seems to drop values
+# buffer_data = test_data.iloc[window_size:][['Open', 'High', 'Low', 'Close', 'Volume']].copy()
 full_df = pd.concat([buffer_data, new_data])
 full_df = full_df[~full_df.index.duplicated(keep='last')]
 full_df['Returns'], full_df['Range'] = functions.get_two_state_data(full_df)
