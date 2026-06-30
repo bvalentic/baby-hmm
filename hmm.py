@@ -192,6 +192,8 @@ if market_final_train > strategy_final_train:
 else:
     print("🤖 The HMM strategy beat the market in training!")
 
+functions.print_sharpe_block("Training", train_data['Strategy_Returns'], train_data['Returns'])
+
 # check if the model makes a good prediction:
 # get the transitional matrix for the final state
 train_features_final = train_data.iloc[-1:][['Returns', 'Range']].values
@@ -279,6 +281,8 @@ if strategy_final_test > market_final_test:
     print("\n✅ The HMM beat the market in backtesting!")
 else:
     print("\n❌ The HMM underperformed. It might need different features or state counts.")
+
+functions.print_sharpe_block("Backtesting", test_data['Strategy_Returns'], test_data['Returns'])
 
 # next phase - rolling window and walk-forward
 # roll up to present day; 
@@ -464,6 +468,8 @@ print(f"    {market_final:.2%}")
 
 print(f"  Rolling Strategy Final Value:")
 print(f"    {strategy_final:.2%}")
+
+functions.print_sharpe_block("Rolling Window (out-of-sample)", new_results['Strategy_Returns'], new_results['Returns'])
 
 print("Bull state(s):")
 for i in range(0, len(bull_regimes)):

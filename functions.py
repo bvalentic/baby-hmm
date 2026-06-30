@@ -1,5 +1,6 @@
 ## Functions that are used by the model multiple times
 import numpy as np
+import pandas as pd
 import random
 
 def create_HMM():
@@ -92,3 +93,41 @@ def guess_mc(data_frame, mc_count, n_components = 2):
         guess_tuple = (sim, guesses, guess_score, win_rate)
         guess_lists.append(guess_tuple)
     return guess_lists[winning_guess]
+
+def sharpe_ratio(returns_series: pd.Series, periods_per_year: int = 252, risk_free_rate: float = 0.0) -> float:
+    """
+    Annualised Sharpe ratio from a series of log or simple daily returns.
+
+    Parameters
+    ----------
+    returns_series   : daily strategy returns (log or simple, no NaNs)
+    periods_per_year : trading days per year (252 for equities)
+    risk_free_rate   : annualised risk-free rate (default 0.0)
+
+    Returns
+    -------
+    Annualised Sharpe ratio, or np.nan if std == 0 / fewer than 2 observations.
+    """
+    clean = returns_series.dropna()
+    if len(clean) < 2:
+        return np.nan
+    daily_rf = risk_free_rate / periods_per_year
+    excess = clean - daily_rf
+    if excess.std() == 0:
+        return np.nan
+    return float((excess.mean() / excess.std()) * np.sqrt(periods_per_year))
+
+def print_sharpe_block(label: str, strategy_returns: pd.Series, market_returns: pd.Series) -> None:
+    """Print a formatted Sharpe ratio comparison block."""
+    s_sharpe = sharpe_ratio(strategy_returns)
+    m_sharpe = sharpe_ratio(market_returns)
+    print(f"\n── Sharpe Ratio ({label}) ──────────────────────")
+    print(f"  HMM Strategy : {s_sharpe:+.4f}")
+    print(f"  Buy & Hold   : {m_sharpe:+.4f}")
+    if np.isnan(s_sharpe) or np.isnan(m_sharpe):
+        print("  (insufficient data for comparison)")
+    elif s_sharpe > m_sharpe:
+        print(f"  ✅ HMM has a better Sharpe by {s_sharpe - m_sharpe:.4f}")
+    else:
+        print(f"  ❌ Buy & Hold has a better Sharpe by {m_sharpe - s_sharpe:.4f}")
+    print("────────────────────────────────────────────────")
