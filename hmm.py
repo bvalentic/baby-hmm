@@ -31,7 +31,7 @@ data_set = "SPY"
 print(f"Market: {data_set}")
 
 # pick a good start date?
-start_date = "2013-01-01"
+start_date = "2020-01-01"
 end_date = "2025-01-01"
 
 # interval of less than 1d if start - end < 60 days
@@ -167,7 +167,7 @@ plt.show()
 # calculate buy & hold returns
 train_data['Cumulative_Market'] = np.exp(train_data['Returns'].cumsum())
 train_data['Cumulative_Strategy'] = np.exp(train_data['Strategy_Returns'].cumsum())
-train_data['Cumulative_Algorithm'] = np.exp(train_data['Algorithm_Portfolio'].cumsum())
+# train_data['Cumulative_Algorithm'] = np.exp(train_data['Algorithm_Portfolio'].cumsum())
 
 # plot training performance
 print("Plotting training performance:")
@@ -444,7 +444,7 @@ print("\nPlotting new data:")
 plt.figure(figsize=(12, 6))
 plt.plot(new_results.index, new_results['Algorithm_Portfolio'], 
          label='Total Portfolio Balance', color='green')
-plt.title(f'{data_set}: Portfolio on HMM - Training')
+plt.title(f'{data_set}: Portfolio on HMM - Rolling Window')
 plt.legend()
 plt.show()
 

@@ -30,19 +30,6 @@ python hmm.py # or whichever py file you want to run
 | **Transition Matrix** | The probability of moving from one state to another (e.g., How likely is it to stay in a Bull market tomorrow if we are in one today?). |
 | **Stationarity** | HMMs fail if you feed them raw prices (100, 101, 102). You must feed them changes (returns) or ratios (volatility). |
 
-### Phases
-
-The program is broken down into phases:
-
-1. Fetch data
-2. Build and train model
-3. Plot and show
-4. Test against training data
-5. Analyze training results
-6. Test on new data
-7. Use rolling window to train up to present day
-8. Return recent states and predict tomorrow's state
-
 ### Market Regimes
 
 Some examples of regimes found by model:
@@ -62,3 +49,16 @@ Some examples of regimes found by model:
 | Crash | Sharp decline, high volatility | High negative | High volume |
 | Recovery | High growth, high volatility | High positive | Low volume |
 | --- | --- | --- | --- |
+
+## Phases
+
+The program is broken down into phases:
+
+1. Fetch data
+2. Build and train model
+3. Plot and show
+4. Test against training data
+5. Analyze training results
+6. Test on new data
+7. Use rolling window to train up to present day
+8. Return recent states and predict tomorrow's state
