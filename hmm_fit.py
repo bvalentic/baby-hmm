@@ -33,9 +33,10 @@ window_size = 252
 data = yf.download(data_set, start=start_date, end=end_date, interval=interval)
 
 # separate dataset into training and testing data
-train_size = int(len(data) * 0.70)
-train_data = data[:train_size].copy()
-test_data = data[train_size:].copy()
+if(data is not None):
+    train_size = int(len(data) * 0.70)
+    train_data = data[:train_size].copy()
+    test_data = data[train_size:].copy()
 
 # more data
 last_date = test_data.index[-1].strftime("%Y-%m-%d")

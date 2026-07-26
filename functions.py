@@ -94,7 +94,7 @@ def guess_mc(data_frame, mc_count, n_components = 2):
         guess_lists.append(guess_tuple)
     return guess_lists[winning_guess]
 
-def sharpe_ratio(returns_series: pd.Series, periods_per_year: int = 252, risk_free_rate: float = 0.0) -> float:
+def sharpe_ratio(returns_series: pd.Series, risk_free_rate: float = 0.0, periods_per_year: int = 252) -> float:
     """
     Annualised Sharpe ratio from a series of log or simple daily returns.
 
@@ -117,10 +117,10 @@ def sharpe_ratio(returns_series: pd.Series, periods_per_year: int = 252, risk_fr
         return np.nan
     return float((excess.mean() / excess.std()) * np.sqrt(periods_per_year))
 
-def print_sharpe_block(label: str, strategy_returns: pd.Series, market_returns: pd.Series, periods_per_year: int = 252, risk_free_rate: float = 0.0) -> None:
+def print_sharpe_block(label: str, strategy_returns: pd.Series, market_returns: pd.Series, risk_free_rate: float = 0.0, periods_per_year: int = 252) -> None:
     """Print a formatted Sharpe ratio comparison block."""
-    s_sharpe = sharpe_ratio(strategy_returns, 252, 0.035)
-    m_sharpe = sharpe_ratio(market_returns, 252, 0.035)
+    s_sharpe = sharpe_ratio(strategy_returns, risk_free_rate, periods_per_year)
+    m_sharpe = sharpe_ratio(market_returns, risk_free_rate, periods_per_year)
     print(f"\n── Sharpe Ratio ({label}) ──────────────────────")
     print(f"  HMM Strategy : {s_sharpe:+.4f}")
     print(f"  Buy & Hold   : {m_sharpe:+.4f}")

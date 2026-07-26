@@ -40,9 +40,10 @@ interval = "1d"
 data = yf.download(data_set, start=start_date, end=end_date, interval=interval)
 
 # separate dataset into training and testing data
-train_size = int(len(data) * 0.70)
-train_data = data[:train_size].copy()
-test_data = data[train_size:].copy()
+if(data is not None):
+    train_size = int(len(data) * 0.70)
+    train_data = data[:train_size].copy()
+    test_data = data[train_size:].copy()
 # get the initial start and end dates of testing
 test_start = test_data['Close'].index[0]
 test_end = test_data['Close'].index[-1]
@@ -192,7 +193,9 @@ if market_final_train > strategy_final_train:
 else:
     print("🤖 The HMM strategy beat the market in training!")
 
-functions.print_sharpe_block("Training", train_data['Strategy_Returns'], train_data['Returns'])
+print("\nChecking Sharpe ratio for training window:")
+current_interest_rate = 0.035
+functions.print_sharpe_block("Training", train_data['Strategy_Returns'], train_data['Returns'], current_interest_rate)
 
 # check if the model makes a good prediction:
 # get the transitional matrix for the final state
@@ -282,7 +285,8 @@ if strategy_final_test > market_final_test:
 else:
     print("\n❌ The HMM underperformed. It might need different features or state counts.")
 
-functions.print_sharpe_block("Backtesting", test_data['Strategy_Returns'], test_data['Returns'])
+print("\nChecking Sharpe ratio for backtesting window:")
+functions.print_sharpe_block("Backtesting", test_data['Strategy_Returns'], test_data['Returns'], current_interest_rate)
 
 # next phase - rolling window and walk-forward
 # roll up to present day; 
@@ -469,7 +473,8 @@ print(f"    {market_final:.2%}")
 print(f"  Rolling Strategy Final Value:")
 print(f"    {strategy_final:.2%}")
 
-functions.print_sharpe_block("Rolling Window (out-of-sample)", new_results['Strategy_Returns'], new_results['Returns'])
+print("\nChecking Sharpe ratio for rolling window:")
+functions.print_sharpe_block("Rolling Window (out-of-sample)", new_results['Strategy_Returns'], new_results['Returns'], current_interest_rate)
 
 print("Bull state(s):")
 for i in range(0, len(bull_regimes)):
