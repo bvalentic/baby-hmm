@@ -10,6 +10,9 @@ from datetime import datetime
 
 import time
 
+# TODO list: 
+# - Add Sharpe ratio as additional score
+
 # use SPY (S&P 500 ETF) for a good mix of regimes
 data_set = "SPY"
 

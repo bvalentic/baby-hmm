@@ -10,7 +10,12 @@ from hmmlearn import hmm
 from datetime import datetime
 
 # TODO list:
-# - Use highest-scoring model as basis for another round of models
+# - Fix:
+#   - Overflow warning
+#   - Invalid Sharpe ratio
+#   - Cumulative sum / normalized market returns
+# - Use highest-scoring model (win rate and Sharpe) as selected model
+#   - Iterate and use top N in another round of modeling
 # - Attempt adding a third parameter:
 #   - Volume
 #   - Difference between last day's close and next day's open
@@ -19,7 +24,8 @@ from datetime import datetime
 #   - (2) a random walk baseline
 #   - (3) a simple moving-average trend filter
 #   - and translates to a positive Sharpe on a paper trading strategy
-# - If HMM beats all of the above on out-of-sample data, ship to prod
+#   - If HMM beats all of the above on out-of-sample data, notify and save
+# - Unit tests
 
 
 print("\n|Phase 1: Fetch data|")
@@ -150,34 +156,61 @@ print("Setting bull market signal...")
 train_data['Signal'] = np.where(train_data['State'].isin(bull_regimes), 1, 0)
 
 # calculate returns on HMM
-train_data['Strategy_Returns'] = algo.buy_and_hold_strategy(train_data)
-train_data['Algorithm_Portfolio'] = algo.basic_algo(train_data)
-train_data['New_Strategy_Returns'] = algo.new_buy_and_hold(train_data)
+train_data['Buy_and_Hold_Returns'] = algo.buy_and_hold_pure_strategy(train_data)
+train_data['Moderate_Strategy_Returns'] = algo.signal_trader(train_data)
+train_data['Extreme_Strategy_Returns'] = algo.signal_trader(
+    train_data,
+    shares=0,
+    buy_percentage=1,
+    sell_percentage=1
+    )
 
 # Plot using the index explicitly for X-axis stability
 print("Plotting portfolio returns:")
 plt.figure(figsize=(12, 6))
-plt.plot(train_data.index, train_data['Algorithm_Portfolio'], 
-         label='Total Portfolio Balance', color='green')
-plt.plot(train_data.index, train_data['New_Strategy_Returns'], 
-         label='Full Buy & Hold Returns', color='red')
-plt.title(f'{data_set}: Portfolio on HMM - Training')
+plt.plot(train_data.index, train_data['Buy_and_Hold_Returns'], 
+         label='Buy and Hold Pure', color='green')
+plt.plot(train_data.index, train_data['Moderate_Strategy_Returns'], 
+         label='Moderate Signal Trader', color='orange')
+plt.plot(train_data.index, train_data['Extreme_Strategy_Returns'], 
+         label='Extreme Signal Trader', color='red')
+plt.title(f'{data_set}: Portfolio Returns - Training')
 plt.legend()
 plt.show()
 
-# calculate buy & hold returns
+# calculate cumulative returns
 train_data['Cumulative_Market'] = np.exp(train_data['Returns'].cumsum())
-train_data['Cumulative_Strategy'] = np.exp(train_data['Strategy_Returns'].cumsum())
-# train_data['Cumulative_Algorithm'] = np.exp(train_data['Algorithm_Portfolio'].cumsum())
+
+train_data['Strategy_Returns'] = algo.hmm_pure_strategy(train_data)
+train_data['Cumulative_Strategy'] = np.exp(train_data['Strategy_Returns']).cumsum()
 
 # plot training performance
 print("Plotting training performance:")
 plt.figure(figsize=(12, 6))
 plt.plot(train_data['Cumulative_Market'], label=data_set, color='gray')
-plt.plot(train_data['Cumulative_Strategy'], label='Buy & Hold w/HMM', color='orange')
+plt.plot(train_data['Cumulative_Strategy'], label='Moderate HMM Strategy', color='orange')
 plt.title(f'{data_set}: HMM Strategy vs Market - Training')
 plt.legend()
 plt.show()
+
+## new code
+# calculate returns on HMM
+# We shift signal by 1 because we trade at the close based on today's state for tomorrow
+train_data['Strategy_Returns'] = train_data['Signal'].shift(1) * train_data['Returns']
+
+# calculate buy & hold returns
+train_data['Cumulative_Market'] = np.exp(train_data['Returns'].cumsum())
+train_data['Cumulative_Strategy'] = np.exp(train_data['Strategy_Returns'].cumsum())
+
+# plot training performance
+print("Plotting training performance (debug):")
+plt.figure(figsize=(12, 6))
+plt.plot(train_data['Cumulative_Market'], label='Buy & Hold', color='gray')
+plt.plot(train_data['Cumulative_Strategy'], label='HMM Strategy', color='orange')
+plt.title('HMM Strategy vs Buy & Hold - Training')
+plt.legend()
+plt.show()
+## old code
 
 print("\n|Phase 5: Analyze training results|")
 
@@ -195,7 +228,7 @@ else:
 
 print("\nChecking Sharpe ratio for training window:")
 current_interest_rate = 0.035
-functions.print_sharpe_block("Training", train_data['Strategy_Returns'], train_data['Returns'], current_interest_rate)
+functions.print_sharpe_block("Training", train_data['Buy_and_Hold_Returns'], train_data['Returns'], current_interest_rate)
 
 # check if the model makes a good prediction:
 # get the transitional matrix for the final state
@@ -258,11 +291,11 @@ plt.title(f'{data_set}: Regimes Detected by HMM - Backtesting')
 plt.show()
 
 # calculate returns
-test_data['Strategy_Returns'] = algo.buy_and_hold_strategy(test_data)
+test_data['Buy_and_Hold_Returns'] = algo.buy_and_hold_pure_strategy(test_data)
 
 # calculate cumulative growth
 test_data['Cumulative_Market'] = np.exp(test_data['Returns'].cumsum())
-test_data['Cumulative_Strategy'] = np.exp(test_data['Strategy_Returns'].cumsum())
+test_data['Cumulative_Strategy'] = np.exp(test_data['Buy_and_Hold_Returns'].cumsum())
 
 # plot test performance
 print("Plotting initial test performance:")
@@ -286,7 +319,7 @@ else:
     print("\n❌ The HMM underperformed. It might need different features or state counts.")
 
 print("\nChecking Sharpe ratio for backtesting window:")
-functions.print_sharpe_block("Backtesting", test_data['Strategy_Returns'], test_data['Returns'], current_interest_rate)
+functions.print_sharpe_block("Backtesting", test_data['Buy_and_Hold_Returns'], test_data['Returns'], current_interest_rate)
 
 # next phase - rolling window and walk-forward
 # roll up to present day; 
@@ -426,8 +459,8 @@ new_results = full_results[window_size:]
 new_results['Signal'] = signals
 new_results['State'] = states
 
-new_results['Strategy_Returns'] = algo.buy_and_hold_strategy(new_results)
-new_results['Algorithm_Portfolio'] = algo.basic_algo(new_results)
+new_results['Buy_and_Hold_Returns'] = algo.buy_and_hold_pure_strategy(new_results)
+new_results['Moderate_Strategy_Returns'] = algo.signal_trader(new_results)
 
 # get "control group" of random guesses
 new_results_guesses = functions.guess_list(signals, n_components)
@@ -446,14 +479,14 @@ print("\nPlotting new data:")
 # plot algorithm portfolio
 # plot using the index explicitly for X-axis stability
 plt.figure(figsize=(12, 6))
-plt.plot(new_results.index, new_results['Algorithm_Portfolio'], 
+plt.plot(new_results.index, new_results['Moderate_Strategy_Returns'], 
          label='Total Portfolio Balance', color='green')
 plt.title(f'{data_set}: Portfolio on HMM - Rolling Window')
 plt.legend()
 plt.show()
 
 new_results['Cumulative_Market'] = np.exp(new_results['Returns'].cumsum())
-new_results['Cumulative_Strategy'] = np.exp(new_results['Strategy_Returns'].cumsum())
+new_results['Cumulative_Strategy'] = np.exp(new_results['Buy_and_Hold_Returns'].cumsum())
 
 market_final = new_results['Cumulative_Market'].iloc[-1]
 strategy_final = new_results['Cumulative_Strategy'].iloc[-1]
@@ -474,7 +507,7 @@ print(f"  Rolling Strategy Final Value:")
 print(f"    {strategy_final:.2%}")
 
 print("\nChecking Sharpe ratio for rolling window:")
-functions.print_sharpe_block("Rolling Window (out-of-sample)", new_results['Strategy_Returns'], new_results['Returns'], current_interest_rate)
+functions.print_sharpe_block("Rolling Window (out-of-sample)", new_results['Buy_and_Hold_Returns'], new_results['Returns'], current_interest_rate)
 
 print("Bull state(s):")
 for i in range(0, len(bull_regimes)):
