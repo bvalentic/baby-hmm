@@ -5,7 +5,7 @@
 # buy X amount (5%? 25%?) if bullish in that interval
 # sell Y amount if bearish
 # add to funding pool every week
-def signal_trader(data_frame, initial_funds = 1000, shares = 0.0, buy_percentage = 0.10, sell_percentage = 0.10):
+def signal_trader(data_frame, initial_funds = 1000, shares = 0.0, buy_percentage = 0.25, sell_percentage = 0.50):
     cash_on_hand = initial_funds # assume USD
     portfolio_history = [] 
 

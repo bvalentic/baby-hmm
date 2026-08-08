@@ -130,4 +130,4 @@ def print_sharpe_block(label: str, strategy_returns: pd.Series, market_returns: 
         print(f"  ✅ HMM has a better Sharpe by {s_sharpe - m_sharpe:.4f}")
     else:
         print(f"  ❌ Buy & Hold has a better Sharpe by {m_sharpe - s_sharpe:.4f}")
-    print("────────────────────────────────────────────────")
+    print("────────────────────────────────────────────────\n")
