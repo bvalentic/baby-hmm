@@ -10,17 +10,14 @@ from hmmlearn import hmm
 from datetime import datetime
 
 # TODO list:
-# - Plot portfolios with algorithm results after rolling windows
-# - Use highest-scoring model (win rate and Sharpe) as selected model
-#   - Iterate and use top N in another round of modeling
-# - Attempt adding a third parameter:
+# - Attempt adding a third parameter, or substituting one; candidates:
 #   - Volume
 #   - Difference between last day's close and next day's open
-# - Compare winning model to: 
+# - Compare model to: 
 #   - (1) a persistence model (today's regime = yesterday's regime)
 #   - (2) a random walk baseline
 #   - (3) a simple moving-average trend filter
-#   - and translates to a positive Sharpe on a paper trading strategy
+#   - (4) a positive Sharpe on a paper trading strategy
 #   - If HMM beats all of the above on out-of-sample data, notify and save
 # - Unit tests
 
@@ -34,7 +31,7 @@ data_set = "SPY"
 print(f"Market: {data_set}")
 
 # pick a good start date?
-start_date = "2020-01-01"
+start_date = "2019-01-01"
 end_date = "2025-01-01"
 
 # interval of less than 1d if start - end < 60 days
@@ -129,7 +126,7 @@ print("\n|Phase 3: Plot and verify|")
 plt.figure(figsize=(15, 6))
 
 # plot line chart of market close (for now)
-print("Plotting model's detected regimes over market close:")
+print("Plotting model's detected regimes over market close:\n")
 plt.plot(train_data['Close'], '-', label=f"{data_set}", color='grey', markersize=1)
 
 # plot each state's closing price
@@ -164,7 +161,7 @@ train_data['Extreme_Strategy_Returns'] = algo.signal_trader(
     )
 
 # Plot using the index explicitly for X-axis stability
-print("Plotting portfolio returns:")
+print("Plotting portfolio returns:\n")
 plt.figure(figsize=(12, 6))
 plt.plot(train_data.index, train_data['Buy_and_Hold_Returns'], 
          label='Pure Buy and Hold', color='green')
@@ -187,7 +184,7 @@ train_data['Cumulative_Market'] = np.exp(train_data['Returns'].cumsum())
 train_data['Cumulative_Strategy'] = np.exp(train_data['Strategy_Returns'].cumsum())
 
 # plot training performance
-print("Plotting training performance:")
+print("Plotting training performance:\n")
 plt.figure(figsize=(12, 6))
 plt.plot(train_data['Cumulative_Market'], label='Buy & Hold', color='gray')
 plt.plot(train_data['Cumulative_Strategy'], label='HMM Strategy', color='orange')
@@ -256,7 +253,7 @@ for i in range(0, len(bull_regimes)):
 
 test_data['Signal'] = np.where(test_data['State'].isin(bull_regimes), 1, 0)
 
-print("Plotting predicted regimes:")
+print("Plotting predicted regimes:\n")
 plt.figure(figsize=(12, 6))
 # plot market close, in grey, behind regime plot
 plt.plot(test_data['Close'], '-', label=f"{data_set}", color='grey', markersize=1)
@@ -271,6 +268,29 @@ for i in range(model.n_components):
         markersize=3)
 plt.legend()
 plt.title(f'{data_set}: Regimes Detected by HMM - Backtesting')
+plt.show()
+
+# calculate returns on HMM
+test_data['Buy_and_Hold_Returns'] = algo.buy_and_hold_pure_strategy(test_data)
+test_data['Moderate_Strategy_Returns'] = algo.signal_trader(test_data)
+test_data['Extreme_Strategy_Returns'] = algo.signal_trader(
+    test_data,
+    shares=0,
+    buy_percentage=1,
+    sell_percentage=1
+    )
+
+# plot portfolio returns for backtesting
+print("Plotting portfolio returns:\n")
+plt.figure(figsize=(12, 6))
+plt.plot(test_data.index, test_data['Buy_and_Hold_Returns'], 
+         label='Pure Buy and Hold', color='green')
+plt.plot(test_data.index, test_data['Moderate_Strategy_Returns'], 
+         label='Moderate Signal Trader', color='orange')
+plt.plot(test_data.index, test_data['Extreme_Strategy_Returns'], 
+         label='Extreme Signal Trader', color='red')
+plt.title(f'{data_set}: Portfolio Returns - Backtesting')
+plt.legend()
 plt.show()
 
 # calculate returns
@@ -346,13 +366,14 @@ print(f"End date: {full_df.index[-1].strftime("%Y-%m-%d")}")
 print(f"Compare with end date on test_data: {test_end.strftime("%Y-%m-%d")}")
 
 # plot market in new data to get an idea of how it has behaved in recent past
-# and also to catch breath before the rolling window
-print("Plotting market between training date and now:")
+print("Plotting market between training date and now:\n")
 plt.figure(figsize=(12, 6))
 plt.plot(full_df['Close'], label=data_set, color='black')
 plt.title(f'{data_set} Market Outlook - Rolling Window')
 plt.legend()
 plt.show()
+
+print("\n!|--Last chance to verify data before rolling window logs--|!\n")
 
 # now before rolling window, check the model's prediction
 # get the transitional matrix for the final state
@@ -464,11 +485,28 @@ for item in range(len(signals)):
         guess_score += 1
 guess_win_rate = guess_score / len(signals)
 
-print(f"Guessing win rate: {guess_win_rate:.2%}")
+print(f"Guessing win rate: {guess_win_rate:.2%}\n")
 
-print("\nPlotting new data:")
+# plot market and regimes from final window
+# print("Plotting predicted regimes with rolling window:\n")
+# plt.figure(figsize=(12, 6))
+# # plot market close, in grey, behind regime plot
+# plt.plot(new_results['Close'], '-', label=f"{data_set}", color='grey', markersize=1)
+# for i in range(model.n_components):
+#     state = (states == i)
+#     plt.plot(
+#         new_results.index[state], 
+#         new_results['Close'][state], 
+#         '.', 
+#         label=f'State {i}', 
+#         color=colors[i], 
+#         markersize=3)
+# plt.legend()
+# plt.title(f'{data_set}: Regimes Detected by HMM - Rolling Window')
+# plt.show()
+
+print("Plotting rolling window returns:\n")
 # plot algorithm portfolio
-# plot using the index explicitly for X-axis stability
 plt.figure(figsize=(12, 6))
 plt.plot(new_results.index, new_results['Buy_and_Hold_Returns'], 
          label='Pure Buy and Hold', color='green')
@@ -487,6 +525,7 @@ market_final = new_results['Cumulative_Market'].iloc[-1]
 strategy_final = new_results['Cumulative_Strategy'].iloc[-1]
 
 # plot "old" method of market + buy & hold
+print("Plotting rolling window performance:\n")
 plt.figure(figsize=(12, 6))
 plt.plot(new_results['Cumulative_Market'], label='Buy & Hold', color='black')
 plt.plot(new_results['Cumulative_Strategy'], label='HMM Strategy', color='green')
@@ -494,7 +533,7 @@ plt.title(f'{data_set}: HMM Strategy vs Buy & Hold - Rolling Window')
 plt.legend()
 plt.show()
 
-print(f"\nFrom {last_date} to {most_recent_date}:")
+print(f"From {last_date} to {most_recent_date}:")
 print(f"  Classic Market Final Return:")
 print(f"    {(market_final - 1):.2%}")
 
@@ -502,7 +541,7 @@ print(f"  Rolling Strategy Final Return:")
 print(f"    {(strategy_final - 1):.2%}")
 
 print("\nChecking Sharpe ratio for rolling window:")
-functions.print_sharpe_block("Rolling Window (out-of-sample)", new_results['Strategy_Returns'], new_results['Returns'], current_interest_rate)
+functions.print_sharpe_block("Rolling Window", new_results['Strategy_Returns'], new_results['Returns'], current_interest_rate)
 
 print("Bull state(s):")
 for i in range(0, len(bull_regimes)):
@@ -549,7 +588,7 @@ for i in range(0, probs_for_tomorrow.size):
 
 print(f"Predicted state for {data_set} tomorrow: {next_predicted_state}\n")
 print(f"Action for {data_set} Tomorrow: {'🚀 BUY BUY BUY' if is_bullish else '💰 SELL SELL SELL'}\n")
-print("Displaying transitional matrix:")
+print("Displaying transitional matrix:\n")
 # plot heatmap of transmat
 plt.imshow(model.transmat_, aspect='auto', cmap='magma')
 plt.title('Generated Transition Matrix')
