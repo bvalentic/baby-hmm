@@ -10,9 +10,7 @@ from hmmlearn import hmm
 from datetime import datetime
 
 # TODO list:
-# - Attempt adding a third parameter, or substituting one; candidates:
-#   - Volume
-#   - Difference between last day's close and next day's open
+# # Work
 # - Compare model to: 
 #   - (1) a persistence model (today's regime = yesterday's regime)
 #   - (2) a random walk baseline
@@ -20,6 +18,11 @@ from datetime import datetime
 #   - (4) a positive Sharpe on a paper trading strategy
 #   - If HMM beats all of the above on out-of-sample data, notify and save
 # - Unit tests
+# 
+# # Research
+# - Attempt adding a third parameter, or substituting one; candidates:
+#   - Volume
+#   - Difference between last day's close and next day's open
 
 
 print("\n|Phase 1: Fetch data|")
