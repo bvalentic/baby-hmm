@@ -11,11 +11,15 @@ from datetime import datetime
 
 import time
 
+# TODO list:
+# - Use highest-scoring model (win rate and Sharpe) as selected model
+#   - Iterate and use top N in another round of modeling
+
 # use SPY (S&P 500 ETF) for a good mix of regimes
 data_set = "SPY"
 
 # pick a good start date, far back enough to give the model lots of initial data
-start_date = "2020-01-01"
+start_date = "2019-01-01"
 end_date = "2025-01-01"
 
 # interval of less than 1d if start - end < 60 days
@@ -24,7 +28,7 @@ interval = "1d"
 # number of models to run
 # seems to be 1 model ~= 3.23s total runtime
 # (refactor had it down to 1.97s)
-max_model_count = 32
+max_model_count = 16
 
 # we'll do a 1-year rolling window
 # 252 trading days in a year
@@ -33,9 +37,10 @@ window_size = 252
 data = yf.download(data_set, start=start_date, end=end_date, interval=interval)
 
 # separate dataset into training and testing data
-train_size = int(len(data) * 0.70)
-train_data = data[:train_size].copy()
-test_data = data[train_size:].copy()
+if(data is not None):
+    train_size = int(len(data) * 0.70)
+    train_data = data[:train_size].copy()
+    test_data = data[train_size:].copy()
 
 # more data
 last_date = test_data.index[-1].strftime("%Y-%m-%d")
