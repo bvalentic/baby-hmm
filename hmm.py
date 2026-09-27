@@ -1,6 +1,7 @@
 ## An HMM-based algorithmic trading system in Python
 import functions
 import baby_algo as algo
+from evaluation import evaluate_and_maybe_save
 
 import numpy as np
 import pandas as pd
@@ -11,14 +12,15 @@ from datetime import datetime
 
 # TODO list:
 # # Work
-# - Compare model to: 
-#   - (1) a persistence model (today's regime = yesterday's regime)
+# - [x] Compare model to:
+#   - (1) a persistence model (control group: always bullish/invested)
 #   - (2) a random walk baseline
 #   - (3) a simple moving-average trend filter
 #   - (4) a positive Sharpe on a paper trading strategy
 #   - If HMM beats all of the above on out-of-sample data, notify and save
-# - Unit tests
-# 
+#   -> see baselines.py / evaluation.py, wired in after Phase 7 below
+# - [x] Unit tests -> see tests/ (covers functions.py, baby_algo.py, baselines.py)
+#
 # # Research
 # - Attempt adding a third parameter, or substituting one; candidates:
 #   - Volume
@@ -41,12 +43,18 @@ end_date = "2025-01-01"
 interval = "1d"
 
 data = yf.download(data_set, start=start_date, end=end_date, interval=interval)
+data = functions.flatten_yfinance_columns(data)
 
 # separate dataset into training and testing data
-if(data is not None):
-    train_size = int(len(data) * 0.70)
-    train_data = data[:train_size].copy()
-    test_data = data[train_size:].copy()
+if data is None or data.empty:
+    raise RuntimeError(
+        f"No data returned for {data_set} between {start_date} and {end_date} "
+        "-- check the ticker symbol and date range."
+    )
+
+train_size = int(len(data) * 0.70)
+train_data = data[:train_size].copy()
+test_data = data[train_size:].copy()
 # get the initial start and end dates of testing
 test_start = test_data['Close'].index[0]
 test_end = test_data['Close'].index[-1]
@@ -105,17 +113,10 @@ two_state_shape = ['Returns', 'Volatility']
 four_state_shape = ['Open', 'High', 'Low', 'Close']
 six_state_shape = ['Returns', 'Range', 'Open', 'High', 'Low', 'Close']
 
-positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
 
 # try adding volatility check
 volatility_threshold = 0.070
-low_volatility_regimes = np.where(model.means_[:, 1] < volatility_threshold)[0]
-
-bull_regimes = []
-for i in positive_return_regimes:
-    if i in low_volatility_regimes:
-        bull_regimes.append(i)
-
+bull_regimes = functions.compute_bull_regimes(model, volatility_threshold)
 
 print("Means and variances of each state (Returns & Volatility):")
 for i in range(model.n_components):
@@ -221,7 +222,7 @@ train_transmat_final = model.transmat_[train_prediction_final]
 print(f"Probabilities for next state: {train_transmat_final}")
 # get largest state, to see if first index of new model.predict matches 
 train_predicted_chance_final = train_transmat_final.max()
-train_predicted_state_final = np.where(train_transmat_final == train_predicted_chance_final)[0]
+train_predicted_state_final = np.where(train_transmat_final == train_predicted_chance_final)[0][0]
 
 print("\n|Phase 6: Initial test on new data|")
 
@@ -243,12 +244,7 @@ print(f"First test prediction: {test_prediction_first}")
 # add to dataframe and calculate returns
 test_data = test_data.copy() # Avoid SettingWithCopyWarning
 print("Resetting bull market signal...")
-positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
-low_volatility_regimes = np.where(model.means_[:, 1] < volatility_threshold)[0]
-bull_regimes = []
-for i in positive_return_regimes:
-    if i in low_volatility_regimes:
-        bull_regimes.append(i)
+bull_regimes = functions.compute_bull_regimes(model, volatility_threshold)
 
 print("Bull regime(s):")
 for i in range(0, len(bull_regimes)):
@@ -341,14 +337,11 @@ print(f"Fetching data up to {most_recent_date}")
 
 # don't include #end=most_recent_date; it excludes it from results
 new_data = yf.download(data_set, start=last_date)
+new_data = functions.flatten_yfinance_columns(new_data)
 
 # we'll do a 1-year rolling window
 # 252 trading days in a year
 window_size = 252 
-
-# flatten MultiIndex columns if they exist
-# if isinstance(new_data.columns, pd.MultiIndex):
-#     new_data.columns = new_data.columns.get_level_values(0)
 
 # combine with a bit of old data so the first "new" prediction has a training window
 print("Creating new data series for rolling window...")
@@ -391,6 +384,7 @@ run_count = 0
 signals = []
 states = []
 exception_list = []
+empty_bull_regime_windows = []
 
 # use prediction from test data
 current_predicted_high_chance = test_predicted_chance_final 
@@ -410,12 +404,9 @@ for i in range(window_size, len(full_df)):
         model.fit(X_train)
         current_state = model.predict(current_features)[0]
 
-        positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
-        low_volatility_regimes = np.where(model.means_[:, 1] < volatility_threshold)[0]
-        bull_regimes = []
-        for regime in positive_return_regimes:
-            if regime in low_volatility_regimes:
-                bull_regimes.append(regime)
+        bull_regimes = functions.compute_bull_regimes(model, volatility_threshold)
+        if not bull_regimes:
+            empty_bull_regime_windows.append(i)
 
         signal = 1 if current_state in bull_regimes else 0
         signals.append(signal)
@@ -445,6 +436,7 @@ for i in range(window_size, len(full_df)):
 print("\nRolling window complete.")
 print(f"Executed {run_count}/{len(full_df)-window_size} runs.")
 print(f"Exceptions: {exception_list}\n")
+print(f"Windows with no bullish regime detected (fully out of market): {len(empty_bull_regime_windows)}\n")
 print("Compiling data...\n")
 
 print(f"Model score: {model_score:.4f}")
@@ -453,16 +445,11 @@ print(f"Win rate: {win_rate:.2%} ({correct_predictions}/{run_count})")
 
 # set new bullish states in case they've changed
 # (shouldn't change after rolling window, but just to be safe)
-positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
-low_volatility_regimes = np.where(model.means_[:, 1] < volatility_threshold)[0]
-bull_regimes = []
-for i in positive_return_regimes:
-    if i in low_volatility_regimes:
-        bull_regimes.append(i)
+bull_regimes = functions.compute_bull_regimes(model, volatility_threshold)
 
 # add the signals to dataframe
 full_results = full_df.copy()
-new_results = full_results[window_size:]
+new_results = full_results[window_size:].copy()
 new_results['Signal'] = signals
 new_results['State'] = states
 
@@ -550,13 +537,17 @@ print("Bull state(s):")
 for i in range(0, len(bull_regimes)):
     print(f"  {bull_regimes[i]}")
 
+print("\n|Work: Baseline comparison & save gate|")
+evaluate_and_maybe_save(model, new_results, bull_regimes, volatility_threshold, window_size)
+
 print("\n|Phase 8: Recent states and prediction|")
 
-# get the state for today
-# use iloc[-1:] to get the latest data point
-latest_features = functions.get_two_state_values(new_results)
-today_state = model.predict(latest_features)[0]
-# TODO: figure out if [0] or [-1] is correct index to use
+# get the state for today: the rolling loop above already computed and
+# stored this as the last entry of `states` / new_results['State'] for the
+# most recent row -- reuse it rather than re-predicting (the old
+# re-prediction here fed model.predict() the *entire* new_results array
+# and took [0], which is the earliest date in that array, not today).
+today_state = new_results['State'].iloc[-1]
 
 # access the transition matrix
 # a matrix of [Current State, Next State] probabilities

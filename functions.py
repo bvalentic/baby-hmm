@@ -8,6 +8,45 @@ def create_HMM():
 
 def print_means():
     print("Means and variances of each state:")
+
+def flatten_yfinance_columns(data_frame):
+    """
+    Some yfinance versions return MultiIndex columns (e.g. ('Close','SPY'))
+    even for a single-ticker download. Flatten to plain column names so the
+    rest of the pipeline can rely on data_frame['Close'] etc. No-op if the
+    columns are already flat.
+    """
+    if isinstance(data_frame.columns, pd.MultiIndex):
+        data_frame.columns = data_frame.columns.get_level_values(0)
+    return data_frame
+
+def compute_bull_regimes(model, volatility_threshold, relative=False):
+    """
+    Components with positive mean Returns (column 0) and "low" mean Range
+    (column 1, the volatility proxy). This is the single source of truth
+    for the bull-regime logic that used to be copy-pasted at every refit
+    site (initial training, backtest, each rolling-window iteration, and
+    the post-loop recheck) -- one definition means they can't quietly
+    drift out of sync with each other.
+
+    By default (relative=False) "low" means below the fixed
+    `volatility_threshold`, matching current behavior exactly.
+
+    Pass relative=True to instead use "below this fit's own median Range
+    mean" -- since each independent re-fit (e.g. in the rolling window)
+    can land on a different absolute Range scale, a fixed cutoff doesn't
+    always travel well across fits. NOTE: this is a real behavior change,
+    not just a robustness tweak -- with a 2-state model it always marks
+    exactly one state as "low volatility" (whichever is lower), even if
+    both states are genuinely calm, or neither is. Try it deliberately as
+    its own experiment against the walk-forward Sharpe baseline; don't
+    flip the default silently.
+    """
+    positive_return_regimes = np.where(model.means_[:, 0] > 0)[0]
+    cutoff = np.median(model.means_[:, 1]) if relative else volatility_threshold
+    low_volatility_regimes = np.where(model.means_[:, 1] < cutoff)[0]
+    return [i for i in positive_return_regimes if i in low_volatility_regimes]
+
     
 # Return the variables used in original two-state models: returns (close vs. next day close) and range (volatility: high minus low)
 # (I think it's actually setting the 'Returns' and 'Range' in the data_frame and the return is NaN)

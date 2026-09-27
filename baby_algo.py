@@ -9,6 +9,9 @@ def signal_trader(data_frame, initial_funds = 1000, shares = 0.0, buy_percentage
     cash_on_hand = initial_funds # assume USD
     portfolio_history = [] 
 
+    # Trade tomorrow on today's already-known signal, not on same day
+    trade_signal = data_frame['Signal'].shift(1)
+
     for i in range(len(data_frame)):
         # ensure prices are scalars, not Series
         # .item() extracts the single value from a Series
@@ -16,7 +19,7 @@ def signal_trader(data_frame, initial_funds = 1000, shares = 0.0, buy_percentage
         if hasattr(open_price, 'item'): open_price = open_price.item()
         close_price = data_frame['Close'].iloc[i]
         if hasattr(close_price, 'item'): close_price = close_price.item()
-        signal = data_frame['Signal'].iloc[i]
+        signal = trade_signal.iloc[i]
         if hasattr(signal, 'item'): signal = signal.item()
 
         if signal == 1:
