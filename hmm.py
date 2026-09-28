@@ -10,18 +10,8 @@ import matplotlib.pyplot as plt
 from hmmlearn import hmm
 from datetime import datetime
 
+
 # TODO list:
-# # Work
-# - [x] Compare model to:
-#   - (1) a persistence model (control group: always bullish/invested)
-#   - (2) a random walk baseline
-#   - (3) a simple moving-average trend filter
-#   - (4) a positive Sharpe on a paper trading strategy
-#   - If HMM beats all of the above on out-of-sample data, notify and save
-#   -> see baselines.py / evaluation.py, wired in after Phase 7 below
-# - [x] Unit tests -> see tests/ (covers functions.py, baby_algo.py, baselines.py)
-#
-# # Research
 # - Attempt adding a third parameter, or substituting one; candidates:
 #   - Volume
 #   - Difference between last day's close and next day's open
@@ -542,11 +532,9 @@ evaluate_and_maybe_save(model, new_results, bull_regimes, volatility_threshold, 
 
 print("\n|Phase 8: Recent states and prediction|")
 
-# get the state for today: the rolling loop above already computed and
-# stored this as the last entry of `states` / new_results['State'] for the
-# most recent row -- reuse it rather than re-predicting (the old
-# re-prediction here fed model.predict() the *entire* new_results array
-# and took [0], which is the earliest date in that array, not today).
+# get the state for today
+# the rolling loop above already has this as the last entry 
+# of `states` / new_results['State'] for the most recent row
 today_state = new_results['State'].iloc[-1]
 
 # access the transition matrix
